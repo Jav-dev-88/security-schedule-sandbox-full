@@ -1,0 +1,3 @@
+# Local development only. Copy to .dev.vars and keep it out of GitHub.
+ADMIN_USERNAME=jrasheed
+ADMIN_PASSWORD=replace-with-your-private-admin-password

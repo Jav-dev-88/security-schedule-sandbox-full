@@ -64,26 +64,20 @@ Choose Workers, not Pages. The database binding is declared in `wrangler.jsonc` 
 
 If Cloudflare cannot see the new GitHub repository, update the Cloudflare GitHub application's repository access to include it.
 
-## 4. Add the setup secret
+## 4. Set your first Admin password
 
-In the NEW Worker's **Settings → Variables and Secrets**, add:
+In the NEW Worker's Settings → Variables and Secrets, add one Secret:
 
-- Name: `SETUP_TOKEN`
-- Type: Secret
-- Value: a long random string you choose, at least 20 characters.
+- Name: `ADMIN_PASSWORD`
+- Value: the password you chose, at least 10 characters.
 
-Do not put this value in GitHub. Redeploy if Cloudflare requires it after adding the secret.
+Keep that password out of GitHub. There is no SETUP_TOKEN. The first Admin username defaults to `jrasheed`. Optional non-secret variables `ADMIN_USERNAME` and `ADMIN_NAME` can override the initial username and display name.
 
-## 5. Open the NEW app
+## 5. Sign in
 
-Open the new workers.dev URL shown by Cloudflare. The first screen asks for:
+Open the new app and sign in as **jrasheed** using that password. A matching first sign-in creates the Admin and initial workspace automatically. An incorrect password cannot create an account.
 
-- Setup token: the secret you chose.
-- Your name.
-- Admin username.
-- Admin password: at least 10 characters.
-
-Create the first Admin. There is no default password. After first Admin creation, the setup endpoint is disabled. You can remove `SETUP_TOKEN` from Worker secrets afterward.
+After the Admin is created, all sign-ins use the database password hash. You can remove `ADMIN_PASSWORD` from Worker secrets afterward. No preset password is included in the repository.
 
 ## 6. Build your Master
 
@@ -142,7 +136,7 @@ npm test
 npm run build
 ```
 
-To run locally, copy `.dev.vars.example` to `.dev.vars`, replace the setup token, then run:
+To run locally, copy `.dev.vars.example` to `.dev.vars`, set your local ADMIN_PASSWORD, then run:
 
 ```sh
 npm run db:local
@@ -163,7 +157,7 @@ npm run deploy
 
 - **Missing DB binding:** check the database entry and ID in `wrangler.jsonc`.
 - **Server error / no users table:** apply `migrations/0001_initial.sql` to the new D1 database.
-- **Setup secret missing:** add SETUP_TOKEN as a Worker Secret, not an ordinary code constant.
+- **First Admin password missing:** add ADMIN_PASSWORD as a Worker Secret, then sign in as jrasheed.
 - **Temporary password cannot load schedules:** change the password when prompted.
 - **Master is locked:** unlock before editing, restoring a different Master, or deleting a Master row.
 - **Save conflict:** download the unsaved copy, reload latest, and reapply the affected edits.
