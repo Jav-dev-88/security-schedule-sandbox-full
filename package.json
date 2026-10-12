@@ -1,0 +1,5 @@
+{
+  "name": "security-schedule-sandbox-full", "version": "1.0.0", "private": true, "type": "module",
+  "scripts": { "build": "node scripts/check.mjs", "test": "node --test tests/*.test.mjs", "dev": "npx wrangler@4 dev", "deploy": "npx wrangler@4 deploy", "db:local": "npx wrangler@4 d1 migrations apply security-schedule-sandbox-full-db --local", "db:remote": "npx wrangler@4 d1 migrations apply security-schedule-sandbox-full-db --remote" },
+  "engines": { "node": ">=22.13" }
+}

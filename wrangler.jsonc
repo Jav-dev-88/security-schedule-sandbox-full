@@ -1,0 +1,8 @@
+{
+  "name": "security-schedule-sandbox-full",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": true,
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
+  "d1_databases": [{ "binding": "DB", "database_name": "security-schedule-sandbox-full-db", "database_id": "REPLACE_WITH_NEW_TEST_DATABASE_ID", "migrations_dir": "migrations" }]
+}
