@@ -44,7 +44,7 @@ In Cloudflare, open **Storage & Databases → D1** and create a database named:
 
 Copy its Database ID. In your NEW GitHub repository, edit `wrangler.jsonc` and replace `REPLACE_WITH_NEW_TEST_DATABASE_ID` with that ID. Commit the change. Do not use the old app's database ID.
 
-Open the new D1 database's Console. Run the SQL from `migrations/0001_initial.sql`. If the console only allows one statement at a time, run each CREATE TABLE / CREATE INDEX statement separately. The migration is safe to rerun because it uses IF NOT EXISTS.
+The new app automatically creates its database tables when you first open it. You do not need to paste SQL in the D1 Console. Existing tables and records are preserved. The SQL migration file remains available for local development and manual administration.
 
 ## 3. Create the NEW Cloudflare Worker
 
