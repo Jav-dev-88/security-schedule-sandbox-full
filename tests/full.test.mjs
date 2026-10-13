@@ -87,3 +87,11 @@ test('Paid holiday off retains the guard, credits pay once, excludes work/billin
  assert.equal(state.events.length,0);assert.throws(()=>attendanceEvent(state,target,{type:'Paid holiday — off',paidHours:9}),/paid holiday hours/);
  const {schedulePdf}=await import('../src/pdf.js');assert.match(new TextDecoder().decode(schedulePdf(off,'2026-10-18',state)),/0.85 0.95 0.87 rg/);
 });
+
+test('Removing an incorrect attendance entry preserves shifts and other records, removes its pay credit and excludes self coverage',async()=>{
+ const {removeAttendanceRecord,attendanceCoverage}=await import('../public/workspace-model.js');
+ const state={rows:[row('original','Gobardhan')],plans:{},overrides:{},events:[{id:'wrong',guard:'Gobardhan',day:0,source:'original',coverageSource:'original',post:'Post original',start:420,end:900,type:'Sick',payment:'PAID',paidHours:8},{id:'keep',guard:'Other Guard',day:1,start:420,end:900,type:'Sick',cover:'Assouman',payment:'UNPAID'}]};
+ assert.equal(attendanceCoverage(state,state.events[0]),'');
+ const next=removeAttendanceRecord(state,'wrong');assert.deepEqual(next.rows,state.rows);assert.deepEqual(next.plans,state.plans);assert.deepEqual(next.overrides,state.overrides);assert.deepEqual(next.events,[state.events[1]]);assert.equal(state.events.length,2);assert.equal(payrollSummary(next).find(r=>r.guard==='Gobardhan').paidLeave,0);
+ assert.throws(()=>removeAttendanceRecord(next,'wrong'),/no longer/);
+});
