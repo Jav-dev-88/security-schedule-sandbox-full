@@ -93,9 +93,15 @@ The full app starts empty; it does not import sample schedules or the old app's 
 
 Changes are shared between devices after saving. Use Refresh to load another manager's updates. There is no continuous live push refresh.
 
+## Direct post and time editing
+
+Click a post, Time In, or Time Out directly in the schedule. Enter a post name or military time such as 0700, then click outside or press Enter. The row saves automatically and hours recalculate. Row times apply to all seven day columns. Overnight end times are handled automatically. Invalid times and new overlaps are rejected. Rows with linked split or attendance records are protected from edits that would discard those records.
+
+A Schedule Review panel identifies open coverage, missing posts on staffed rows, and overlapping shifts. It does not invent missing shifts or automatically move guards.
+
 ## Temporary guards
 
-Use **Staff → Add temporary guard**, or type a new name directly into a schedule cell and click outside. Temporary guards are marked **TEMP** and can be used in schedules without adding them to permanent staff. Names are shared between devices after saving. The temporary label does not expire automatically or create a login. Use **Make permanent** in Staff if a temporary guard joins the regular team.
+Use **Generate temp guard** on the schedule or **Generate temp name** in Staff to create Temp Guard 1, Temp Guard 2, and so on without reusing existing numbers. Generated names are ready to assign; no shifts or login accounts are created automatically. You can also use **Staff → Add temporary guard**, or type a new name directly into a schedule cell and click outside. Temporary guards are marked **TEMP** and can be used in schedules without adding them to permanent staff. Names are shared between devices after saving. The temporary label does not expire automatically or create a login. Use **Make permanent** in Staff if a temporary guard joins the regular team.
 
 ## 7. Optional: email schedule PDFs
 

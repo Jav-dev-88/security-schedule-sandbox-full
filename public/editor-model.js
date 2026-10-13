@@ -67,3 +67,21 @@ export function quickAddRow(state,platoon){
  const next=structuredClone(state);next.rows.push({id:'custom-'+crypto.randomUUID(),post:'',p,start,end,guards:Array(7).fill(''),open:Array(7).fill(false),billable:false,custom:true,quick:true});
  return {state:next,message:'Blank row added to '+['First','Second','Third'][p-1]+' Platoon. Fill the guard cells; post and times are optional.'};
 }
+
+export function editRowFields(state,id,patch){
+ const original=state.rows.find(r=>r.id===id);if(!original)throw Error('This row is no longer available.');
+ const next=structuredClone(state),row=next.rows.find(r=>r.id===id);
+ const post=String(patch.post??row.post).trim(),p=Number(patch.p??row.p),start=patch.start??row.start,rawEnd=patch.end??row.end;
+ if(post.length>100||(!post&&!row.quick))throw Error('Enter a post with up to 100 characters.');
+ if(![1,2,3].includes(p)||!Number.isInteger(start)||start<0||start>=1440||!Number.isInteger(rawEnd)||rawEnd<0||rawEnd>=2880)throw Error('Enter valid military times.');
+ const endClock=rawEnd%1440;if(endClock===start)throw Error('Start and end cannot be the same time.');const end=endClock<=start?endClock+1440:endClock;
+ const changed=start!==row.start||end!==row.end||post!==row.post||p!==row.p;
+ if(changed){const linked=Object.entries(next.plans).some(([key,plan])=>key.startsWith(id+'|')||(plan.post===row.post&&plan.from===row.start&&plan.to===row.end))||Object.keys(next.overrides).some(key=>key.startsWith(id+'|'))||(next.events||[]).some(e=>e.post===row.post&&e.start===row.start&&e.end===row.end&&row.guards.includes(e.guard));if(linked)throw Error('This row has split or attendance records. Review those assignments before changing its post or times; no records were removed.');}
+ Object.assign(row,{post,p,start,end});if('billable'in patch){row.billable=!!patch.billable;delete row.billing;}
+ if(start!==original.start||end!==original.end){const list=ledger(next).filter(r=>r.guard);for(const a of list.filter(r=>r.source===id))for(const b of list){if(b.source===id||a.guard!==b.guard)continue;const lo=Math.max(a.day*1440+a.start,b.day*1440+b.start),hi=Math.min(a.day*1440+a.end,b.day*1440+b.end);if(lo<hi)throw Error(a.guard+' already has another shift during these times. The time change was not applied.');}}
+ return {state:next,message:'Row updated. Hours recalculated automatically.'};
+}
+export function nextTemporaryGuardName(names){let highest=0;for(const name of names){const match=/^Temp Guard (\d+)$/i.exec(name);if(match&&Number.isSafeInteger(Number(match[1])))highest=Math.max(highest,Number(match[1]));}if(highest>=Number.MAX_SAFE_INTEGER)throw Error('Choose a temporary guard name manually.');return 'Temp Guard '+(highest+1);}
+export function scheduleWarnings(state){const list=ledger(state),warnings=[];for(const r of list){if(!r.guard)warnings.push({type:'coverage',day:r.day,source:r.source,message:'Coverage needed: '+(r.post||'post not set')});else if(!r.post)warnings.push({type:'post',day:r.day,source:r.source,message:r.guard+' has an assigned shift with no post.'});}const guards=new Map();for(const r of list.filter(r=>r.guard)){if(!guards.has(r.guard))guards.set(r.guard,[]);guards.get(r.guard).push(r);}for(const [guard,rows]of guards){rows.sort((a,b)=>a.day*1440+a.start-b.day*1440-b.start);for(let i=0;i<rows.length;i++)for(let j=i+1;j<rows.length;j++){const a=rows[i],b=rows[j];if(b.day*1440+b.start>=a.day*1440+a.end)break;if(Math.max(a.day*1440+a.start,b.day*1440+b.start)<Math.min(a.day*1440+a.end,b.day*1440+b.end))warnings.push({type:'overlap',day:b.day,source:b.source,message:guard+' has overlapping shifts: '+(a.post||'post not set')+' and '+(b.post||'post not set')+'.'});}}
+ return warnings;
+}
