@@ -95,3 +95,18 @@ test('Removing an incorrect attendance entry preserves shifts and other records,
  const next=removeAttendanceRecord(state,'wrong');assert.deepEqual(next.rows,state.rows);assert.deepEqual(next.plans,state.plans);assert.deepEqual(next.overrides,state.overrides);assert.deepEqual(next.events,[state.events[1]]);assert.equal(state.events.length,2);assert.equal(payrollSummary(next).find(r=>r.guard==='Gobardhan').paidLeave,0);
  assert.throws(()=>removeAttendanceRecord(next,'wrong'),/no longer/);
 });
+
+test('Hours-only adjustments add/subtract payable credit, edit without duplication, preserve shifts and validate persisted data',async()=>{
+ const {saveAdjustment,removeAdjustment}=await import('../public/pay-adjustments.js');
+ const state={rows:[row('normal','Guard A')],plans:{},overrides:{},events:[]};
+ let next=saveAdjustment(state,{guard:'Guard A',day:0,type:'Missing worked hours',hours:2,note:'Prior payroll missed 2 hours'});
+ next=saveAdjustment(next,{guard:'Guard A',day:0,type:'Sick pay',hours:8,note:'Approved sick credit'});
+ next=saveAdjustment(next,{guard:'Guard A',day:0,type:'Other paid hours',hours:-1,note:'Correct overpayment'});
+ const summary=payrollSummary(next)[0];assert.equal(summary.worked,8);assert.equal(summary.billable,0);assert.equal(summary.adjustmentHours,9);assert.equal(summary.payable,17);assert.deepEqual(next.rows,state.rows);
+ const id=next.adjustments[0].id;next=saveAdjustment(next,{guard:'Guard A',day:0,type:'Missing worked hours',hours:3,note:'Corrected missing hours'},id);assert.equal(next.adjustments.length,3);assert.equal(payrollSummary(next)[0].payable,18);
+ next=removeAdjustment(next,id);assert.equal(payrollSummary(next)[0].payable,15);
+ assert.throws(()=>saveAdjustment(state,{guard:'Guard A',day:0,type:'Sick pay',hours:0,note:'Reason'}));assert.throws(()=>saveAdjustment(state,{guard:'Guard A',day:0,type:'Sick pay',hours:8,note:''}));
+ const w=newWorkspace();w.weeks[w.activeWeek]=next;validateWorkspace(w);const bad=structuredClone(w);bad.weeks[bad.activeWeek].adjustments[0].hours=Infinity;assert.throws(()=>validateWorkspace(bad),/hours/);
+ w.master.adjustments=next.adjustments;assert.deepEqual(generateWeek(w,'2026-11-01').weeks['2026-11-01'].adjustments,[]);
+ next.isTest=true;assert.deepEqual(payrollSummary(next),[]);
+});
