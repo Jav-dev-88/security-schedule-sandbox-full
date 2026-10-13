@@ -137,3 +137,9 @@ test('Vacation ranges open both linked shifts, preserve Master, avoid duplicate 
  assert.throws(()=>addVacation(next,{guard:'Rasheed',from:'2026-10-13',to:'2026-10-14',payment:'PAID',note:''}),/already has vacation/);validateWorkspace(next);
  const single=attendanceEvent(w.weeks['2026-10-18'],ledger(w.weeks['2026-10-18']).find(r=>r.guard==='Rasheed'),{type:'Vacation',payment:'PENDING'});assert.equal(ledger(single).filter(r=>r.guard==='Rasheed').length,0);assert.equal(single.events.length,2);
 });
+
+test('Call-out records absence and coverage without payment review or leave credit',()=>{
+ const state={rows:[row('shift','Guard A')],plans:{},overrides:{},events:[]};
+ const next=attendanceEvent(state,ledger(state)[0],{type:'Call-out',cover:'Guard B',payment:'PAID',paidHours:8});
+ assert.equal(next.events[0].type,'Call-out');assert.equal(next.events[0].payment,'UNPAID');assert.equal(next.events[0].paidHours,0);assert.equal(next.rows[0].guards[0],'Guard B');assert.equal(payrollSummary(next).find(r=>r.guard==='Guard A').paidLeave,0);
+});

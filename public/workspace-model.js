@@ -17,6 +17,7 @@ export function attendanceEvent(state,target,{type,time='',cover='',payment='PEN
   next.events.push({id:crypto.randomUUID(),source:target.source,guard:target.guard,day:target.day,post:target.post,start:target.start,end:target.end,type,payment:'PAID',paidHours:credit,requestedHours:credit,note});return next;
  }
  const event={id:crypto.randomUUID(),source:target.source,coverageSource:target.source,coverageStart:target.start,coverageEnd:target.end,guard:target.guard,day:target.day,post:target.post,start:target.start,end:target.end,type,time,cover,payment,requestedHours:Math.min(8,hours),paidHours:payment==='PAID'?Math.max(0,Math.min(8,hours,Number(paidHours)||0)):0,note};
+ if(type==='Call-out'){event.payment='UNPAID';event.paidHours=0;event.requestedHours=0;}
  if(type==='Left early'||type==='Came late'){
   const at=Number(time);if(!Number.isFinite(at)||at<=target.start||at>=target.end)throw Error('Enter a time inside this shift.');event.payment='WORKED_ONLY';event.paidHours=0;
   const workStart=type==='Came late'?at:target.start,workEnd=type==='Left early'?at:target.end;
