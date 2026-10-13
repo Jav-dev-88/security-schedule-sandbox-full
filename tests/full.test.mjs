@@ -127,3 +127,13 @@ test('Generated split removal returns guards to original shifts and incoming spl
  const removed=removeGeneratedSplit(split,transferred);assert.equal(Object.keys(removed.state.plans).length,0);assert.equal(ledger(removed.state).find(r=>r.guard==='Guard A').end,900);assert.equal(ledger(split).filter(r=>r.role==='transfer').length,1);assert.equal(payrollSummary(removed.state)[0].worked,8);
  const deleted=removeRow(split,'destination');assert.equal(deleted.state.rows.length,1);assert.equal(Object.keys(deleted.state.plans).length,0);assert.equal(ledger(deleted.state).find(r=>r.guard==='Guard A').post,'Post owner');const restored=restoreRow(deleted.state,deleted);assert.equal(ledger(restored).filter(r=>r.role==='transfer').length,1);
 });
+
+test('Vacation ranges open both linked shifts, preserve Master, avoid duplicate logs and apply to future weeks',async()=>{
+ const {addVacation}=await import('../public/workspace-model.js');
+ const w=newWorkspace();w.master.rows=[row('first','Rasheed',2,510,900),row('second','Rasheed',3,900,990),row('other','Other Guard')];w.weeks={'2026-10-18':structuredClone(w.master)};w.activeWeek='2026-10-18';
+ const next=addVacation(w,{guard:'Rasheed',from:'2026-10-12',to:'2026-10-20',payment:'PAID',note:'Approved vacation'});
+ const week=next.weeks['2026-10-18'];assert.equal(week.events.filter(e=>e.guard==='Rasheed').length,2);assert.equal(ledger(week).filter(r=>r.guard==='Rasheed').length,0);assert.equal(ledger(week).filter(r=>r.source==='first'||r.source==='second').every(r=>r.role==='open'),true);assert.equal(payrollSummary(week).find(r=>r.guard==='Rasheed').paidLeave,8);assert.deepEqual(next.master,w.master);assert.equal(w.vacations,undefined);
+ const future=generateWeek(next,'2026-10-25');assert.equal(ledger(future.weeks['2026-10-25']).filter(r=>r.guard==='Rasheed').length,0);assert.equal(future.weeks['2026-10-25'].events.length,2);
+ assert.throws(()=>addVacation(next,{guard:'Rasheed',from:'2026-10-13',to:'2026-10-14',payment:'PAID',note:''}),/already has vacation/);validateWorkspace(next);
+ const single=attendanceEvent(w.weeks['2026-10-18'],ledger(w.weeks['2026-10-18']).find(r=>r.guard==='Rasheed'),{type:'Vacation',payment:'PENDING'});assert.equal(ledger(single).filter(r=>r.guard==='Rasheed').length,0);assert.equal(single.events.length,2);
+});
