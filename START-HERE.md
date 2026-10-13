@@ -93,6 +93,20 @@ The full app starts empty; it does not import sample schedules or the old app's 
 
 Changes are shared between devices after saving. Use Refresh to load another manager's updates. There is no continuous live push refresh.
 
+## Full-shift attendance coverage
+
+When a guard is out for an entire shift, Attendance replaces that guard in the existing day cell with the covering guard. The original absence remains in Leave & Coverage. If coverage is pending, the same cell shows Blank shift needing coverage. Filling that cell updates the coverage display. A covering guard must be available during the requested hours.
+
+Left early and came late still use a separate row for the uncovered portion because its times differ.
+
+For older duplicate full-shift rows, open Leave & Coverage and use **Repair older coverage rows** if offered. The repair recognizes only unambiguous legacy attendance rows, saves their pictures, and uses the normal database version backup. Rows used on other days or containing further edits are not automatically merged. Undo or a backup can reverse a repair.
+
+## Temporary account passwords
+
+Open **Accounts**, enter the account details, and click **Generate temporary password**. Use **Show password** or **Copy password**, then create the account. Passwords are generated privately in your browser using secure randomness. The generator does not create an account until you submit the form. The account must change its temporary password at first sign-in.
+
+For an existing account, click **Reset password**. A temporary password is generated in the reset form. Copy it and submit **Reset this account’s password** to apply it. Opening the form alone does not reset the account. Provide credentials privately; the app does not send them automatically.
+
 ## Direct post and time editing
 
 Click a post, Time In, or Time Out directly in the schedule. Enter a post name or military time such as 0700, then click outside or press Enter. The row saves automatically and hours recalculate. Row times apply to all seven day columns. Overnight end times are handled automatically. Invalid times and new overlaps are rejected. Rows with linked split or attendance records are protected from edits that would discard those records.

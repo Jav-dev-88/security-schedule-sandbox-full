@@ -1,0 +1,3 @@
+const lower='abcdefghjkmnpqrstuvwxyz',upper='ABCDEFGHJKMNPQRSTUVWXYZ',digits='23456789',symbols='!@#$%';
+function randomIndex(length){const limit=256-256%length,bytes=new Uint8Array(1);do{crypto.getRandomValues(bytes);}while(bytes[0]>=limit);return bytes[0]%length;}
+export function generateTemporaryPassword(){const all=lower+upper+digits+symbols,chars=[lower[randomIndex(lower.length)],upper[randomIndex(upper.length)],digits[randomIndex(digits.length)],symbols[randomIndex(symbols.length)]];while(chars.length<16)chars.push(all[randomIndex(all.length)]);for(let i=chars.length-1;i>0;i--){const j=randomIndex(i+1);[chars[i],chars[j]]=[chars[j],chars[i]];}return chars.join('');}
