@@ -152,3 +152,14 @@ test('Moving a same-platoon guard to a full blank shift opens the original and e
  assert.match(ledger(moved).find(r=>r.source==='rover').note,/Assouman moved to cover Loading Dock/);
  const covered=assign(moved,ledger(moved).find(r=>r.source==='rover'),{guard:'Lodvil',billable:false}).state;const classify=assignmentClassifier(state,covered);const replacement=ledger(covered).map(classify).find(r=>r.source==='rover');assert.equal(replacement.isCoverage,true);assert.match(replacement.note,/Lodvil covering Assouman.*moved to Loading Dock/);assert.equal(payrollSummary(covered).find(r=>r.guard==='Lodvil').worked,8);assert.equal(state.rows[0].guards[0],'Assouman');
 });
+
+test('Payroll transfers count hours once even without a destination schedule and preserve shifts when a destination is generated',async()=>{
+ const {addPayrollTransfer,payrollForWeek,removePayrollTransfer}=await import('../public/payroll-transfers.js');
+ const w=newWorkspace();w.master.rows=[row('night','Assouman',1,1380,1860)];w.weeks={'2026-10-04':structuredClone(w.master)};w.activeWeek='2026-10-04';
+ const original=structuredClone(w),shift=ledger(w.weeks[w.activeWeek])[0];const next=addPayrollTransfer(w,w.activeWeek,shift,'2026-09-27','Continued from Sunday');validateWorkspace(next);
+ assert.deepEqual(next.weeks,original.weeks);assert.equal(payrollForWeek(next,'2026-10-04').find(r=>r.guard==='Assouman').worked,0);assert.equal(payrollForWeek(next,'2026-09-27').find(r=>r.guard==='Assouman').worked,8);assert.equal(next.weeks['2026-09-27'],undefined);
+ assert.throws(()=>addPayrollTransfer(next,next.activeWeek,shift,'2026-09-27','Again'),/already has/);assert.throws(()=>addPayrollTransfer(w,w.activeWeek,shift,'2026-09-28','Bad date'),/Sunday/);
+ const generated=generateWeek(next,'2026-09-27');const expected=payrollSummary(generated.weeks['2026-09-27']).reduce((n,r)=>n+r.worked,0);assert.equal(payrollForWeek(generated,'2026-09-27').reduce((n,r)=>n+r.worked,0),expected+8,'Transfer is added once alongside distinct shifts generated in the destination schedule');
+ const removed=removePayrollTransfer(next,next.payrollTransfers[0].id);assert.equal(payrollForWeek(removed,'2026-10-04')[0].worked,8);assert.equal(payrollForWeek(removed,'2026-09-27').length,0);assert.deepEqual(w,original);
+ const changed=structuredClone(next);changed.weeks['2026-10-04'].rows[0].guards[0]='Other Guard';assert.throws(()=>validateWorkspace(changed),/Remove the payroll transfer/);
+});
