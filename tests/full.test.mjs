@@ -63,3 +63,13 @@ test('Coverage color and payroll notes compare actual assignments with Master an
  const {schedulePdf}=await import('../src/pdf.js');assert.match(new TextDecoder().decode(schedulePdf(weekly,'2026-10-18',master)),/0.93 0.89 1 rg/);
  assert.deepEqual(master.rows[0].guards,['Gobardhan','','','','','','']);
 });
+
+test('Renaming a regular post keeps Master guards regular while only the replacement is coverage',async()=>{
+ const {assignmentClassifier}=await import('../public/assignment-status.js');
+ const master={rows:[{...row('rover','Gobardhan'),guards:['Gobardhan','Koudjoji','Koudjoji','','','',''],post:'Building Rover (P1)'}],plans:{},overrides:{},events:[]};
+ const weekly=structuredClone(master);weekly.rows[0].post='Overnight Rover';weekly.rows[0].guards[0]='Assouman';
+ const classify=assignmentClassifier(master,weekly),shifts=ledger(weekly).map(classify);
+ assert.equal(shifts[0].isCoverage,true);assert.match(shifts[0].note,/Gobardhan/);
+ assert.equal(shifts[1].isCoverage,false);assert.equal(shifts[2].isCoverage,false);
+ const empty={rows:[],plans:{},overrides:{}};assert.equal(assignmentClassifier(empty,weekly)(shifts[1]).isCoverage,false);
+});
