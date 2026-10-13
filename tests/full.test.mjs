@@ -143,3 +143,12 @@ test('Call-out records absence and coverage without payment review or leave cred
  const next=attendanceEvent(state,ledger(state)[0],{type:'Call-out',cover:'Guard B',payment:'PAID',paidHours:8});
  assert.equal(next.events[0].type,'Call-out');assert.equal(next.events[0].payment,'UNPAID');assert.equal(next.events[0].paidHours,0);assert.equal(next.rows[0].guards[0],'Guard B');assert.equal(payrollSummary(next).find(r=>r.guard==='Guard A').paidLeave,0);
 });
+
+test('Moving a same-platoon guard to a full blank shift opens the original and explains subsequent coverage without double hours',async()=>{
+ const {assign}=await import('../public/editor-model.js');const {assignmentClassifier}=await import('../public/assignment-status.js');
+ const state={rows:[{...row('rover','Assouman'),post:'Rover/Relief'},{...row('dock',''),post:'Loading Dock',open:[true,false,false,false,false,false,false]}],plans:{},overrides:{},events:[]};
+ const moved=assign(state,ledger(state).find(r=>r.source==='dock'),{guard:'Assouman',billable:true}).state;
+ assert.equal(moved.rows[0].guards[0],'');assert.equal(moved.rows[0].open[0],true);assert.equal(moved.rows[1].guards[0],'Assouman');assert.equal(Object.keys(moved.plans).length,0);assert.equal(moved.rows.length,2);assert.equal(payrollSummary(moved).find(r=>r.guard==='Assouman').worked,8);
+ assert.match(ledger(moved).find(r=>r.source==='rover').note,/Assouman moved to cover Loading Dock/);
+ const covered=assign(moved,ledger(moved).find(r=>r.source==='rover'),{guard:'Lodvil',billable:false}).state;const classify=assignmentClassifier(state,covered);const replacement=ledger(covered).map(classify).find(r=>r.source==='rover');assert.equal(replacement.isCoverage,true);assert.match(replacement.note,/Lodvil covering Assouman.*moved to Loading Dock/);assert.equal(payrollSummary(covered).find(r=>r.guard==='Lodvil').worked,8);assert.equal(state.rows[0].guards[0],'Assouman');
+});

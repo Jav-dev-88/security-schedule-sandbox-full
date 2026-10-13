@@ -2,7 +2,7 @@ import {BASE,segments,validate,key} from './model.js';
 export const initialRows=structuredClone(BASE);
 export const segmentKey=r=>r.editKey||[r.source,r.day,r.role,r.start,r.end].join('|');
 export function applyRows(state){BASE.splice(0,BASE.length,...structuredClone(state.rows));}
-export function ledger(state){applyRows(state);return segments(state.plans).map(r=>({...r,editKey:segmentKey(r),...state.overrides[segmentKey(r)]})).filter(r=>!r.blank).map(r=>{const holiday=(state.events||[]).find(e=>e.type==='Paid holiday — off'&&e.source===r.source&&e.day===r.day&&e.guard===r.guard&&e.start===r.start&&e.end===r.end);return holiday?{...r,paidHoliday:true,billable:false,note:'Paid holiday — off duty',holidayHours:holiday.payment==='PAID'?Number(holiday.paidHours||0):0}:r;});}
+export function ledger(state){applyRows(state);return segments(state.plans).map(r=>({...r,editKey:segmentKey(r),...state.overrides[segmentKey(r)]})).filter(r=>!r.blank).map(r=>{const holiday=(state.events||[]).find(e=>e.type==='Paid holiday — off'&&e.source===r.source&&e.day===r.day&&e.guard===r.guard&&e.start===r.start&&e.end===r.end);const move=(state.moves||[]).slice().reverse().find(m=>m.day===r.day&&m.start===r.start&&m.end===r.end&&(m.source===r.source||m.destination===r.source&&m.guard===r.guard));if(move&&!holiday){if(move.source===r.source&&r.guard!==move.guard)return {...r,moveCoverage:!!r.guard,moveNote:r.guard?r.guard+' covering '+move.guard+' — '+move.guard+' moved to '+move.toPost:move.guard+' moved to cover '+move.toPost,note:r.guard?r.guard+' covering '+move.guard+' — '+move.guard+' moved to '+move.toPost:move.guard+' moved to cover '+move.toPost};if(move.destination===r.source)return {...r,moveCoverage:true,moveNote:'Moved from '+move.fromPost+' to cover '+move.toPost,note:'Moved from '+move.fromPost+' to cover '+move.toPost};}return holiday?{...r,paidHoliday:true,billable:false,note:'Paid holiday — off duty',holidayHours:holiday.payment==='PAID'?Number(holiday.paidHours||0):0}:r;});}
 export function initialState(){return {version:2,rows:structuredClone(initialRows),plans:{},overrides:{}};}
 export function assign(state,target,{guard,billable,status='staff'}){
  const next=structuredClone(state),list=ledger(next),id=segmentKey(target),prior=list.find(r=>segmentKey(r)===id)||target;
@@ -12,6 +12,14 @@ export function assign(state,target,{guard,billable,status='staff'}){
   if(overlaps.length){
    const existing=overlaps[0],owner=next.rows.find(r=>r.id===existing.source);
    if(overlaps.length!==1||existing.day!==target.day||existing.start>target.start||existing.end<target.end||next.plans[key(existing.source,existing.day)]||owner.guards[existing.day]!==guard)throw Error(guard+' already works then. Use “Part at another post” on their original cell.');
+   const destination=next.rows.find(r=>r.id===target.source);
+   if(!prior.guard&&existing.p===target.p&&existing.start===target.start&&existing.end===target.end&&destination&&destination.start===target.start&&destination.end===target.end&&existing.role==='regular'){
+    owner.guards[target.day]='';(owner.open??=Array(7).fill(false))[target.day]=true;
+    destination.guards[target.day]=guard;(destination.open??=Array(7).fill(false))[target.day]=false;(destination.billing??=Array(7).fill(destination.billable))[target.day]=billable;
+    const hiddenKey=[destination.id,target.day,'regular',target.start,target.end].join('|');if(next.overrides[hiddenKey]?.blank&&Object.keys(next.overrides[hiddenKey]).length===1)delete next.overrides[hiddenKey];
+    next.moves??=[];next.moves.push({id:crypto.randomUUID(),guard,day:target.day,source:owner.id,destination:destination.id,fromPost:existing.post,toPost:target.post,start:target.start,end:target.end});
+    return {state:next,message:guard+' moved to '+target.post+'. '+existing.post+' now needs coverage.'};
+   }
    applyRows(next);next.plans[key(owner.id,target.day)]=validate({source:owner.id,day:target.day,post:target.post,from:target.start,to:target.end,billable,returns:true,needsCover:true,replacement:''},next.plans);
    const row=next.rows.find(r=>r.id===target.source);
    if(prior.role==='regular'&&target.start===row.start&&target.end===row.end){row.guards[target.day]='';(row.open??=Array(7).fill(false))[target.day]=false;}
