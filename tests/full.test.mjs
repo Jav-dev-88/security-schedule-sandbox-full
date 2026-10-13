@@ -47,3 +47,19 @@ test('Assigning the original cell after deleting legacy sick coverage releases i
  const complex=structuredClone(deleted);complex.overrides['regular|0|regular|420|900']={blank:true,end:600};
  assert.deepEqual(assign(complex,target,{guard:'Assouman',billable:false}).state.overrides,complex.overrides);
 });
+
+test('Coverage color and payroll notes compare actual assignments with Master and retain attendance reasons',async()=>{
+ const {assignmentClassifier}=await import('../public/assignment-status.js');
+ const master={rows:[row('regular','Gobardhan')],plans:{},overrides:{},events:[]};
+ const weekly=structuredClone(master);weekly.rows[0].guards[0]='Assouman';
+ const classify=assignmentClassifier(master,weekly),cover=classify(ledger(weekly)[0]);
+ assert.equal(cover.isCoverage,true);assert.match(cover.note,/Covering Gobardhan/);assert(!cover.note.includes('Regular scheduled shift'));
+ assert.equal(assignmentClassifier(master,master)(ledger(master)[0]).isCoverage,false);
+ weekly.events=[{guard:'Gobardhan',day:0,post:'Post regular',start:420,end:900,type:'Sick',cover:'Assouman',coverageSource:'regular'}];
+ assert.match(assignmentClassifier(master,weekly)(ledger(weekly)[0]).note,/Sick/);
+ const partial={...ledger(master)[0],start:600,end:720};assert.equal(assignmentClassifier(master,weekly)(partial).isCoverage,false);
+ const added={...cover,source:'extra',post:'New post'};assert.match(assignmentClassifier(master,weekly)(added).note,/not assigned here in Master/);
+ assert.equal(assignmentClassifier(null,master)(ledger(master)[0]).isCoverage,false);
+ const {schedulePdf}=await import('../src/pdf.js');assert.match(new TextDecoder().decode(schedulePdf(weekly,'2026-10-18',master)),/0.93 0.89 1 rg/);
+ assert.deepEqual(master.rows[0].guards,['Gobardhan','','','','','','']);
+});
