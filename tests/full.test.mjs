@@ -118,3 +118,12 @@ test('Full-shift sick records allow self-service post/time edits while preservin
  const edited=editRowFields(covered,'original',{post:'Renamed post',start:480,end:960}).state;
  assert.equal(edited.rows[0].guards[0],'Guard B');assert.equal(edited.events[0].guard,'Guard A');assert.equal(edited.events[0].post,'Post original');assert.equal(edited.events[0].start,420);assert.equal(edited.events[0].paidHours,8);assert.equal(edited.events[0].coverageStart,480);assert.equal(attendanceCoverage(edited,edited.events[0]),'Guard B');assert.equal(payrollSummary(edited).find(r=>r.guard==='Guard B').worked,8);assert.equal(covered.rows[0].post,'Post original');
 });
+
+test('Generated split removal returns guards to original shifts and incoming split rows can be deleted and restored',async()=>{
+ const {splitCell,removeGeneratedSplit,assign}=await import('../public/editor-model.js');
+ const state={rows:[row('owner','Guard A'),{...row('destination',''),post:'New post',start:480,end:600}],plans:{},overrides:{},events:[]};
+ const split=splitCell(state,ledger(state)[0],{post:'New post',from:480,to:600,billable:true,needsCover:true}).state;
+ const transferred=ledger(split).filter(r=>r.role==='transfer');assert.equal(transferred.length,1);
+ const removed=removeGeneratedSplit(split,transferred);assert.equal(Object.keys(removed.state.plans).length,0);assert.equal(ledger(removed.state).find(r=>r.guard==='Guard A').end,900);assert.equal(ledger(split).filter(r=>r.role==='transfer').length,1);assert.equal(payrollSummary(removed.state)[0].worked,8);
+ const deleted=removeRow(split,'destination');assert.equal(deleted.state.rows.length,1);assert.equal(Object.keys(deleted.state.plans).length,0);assert.equal(ledger(deleted.state).find(r=>r.guard==='Guard A').post,'Post owner');const restored=restoreRow(deleted.state,deleted);assert.equal(ledger(restored).filter(r=>r.role==='transfer').length,1);
+});
