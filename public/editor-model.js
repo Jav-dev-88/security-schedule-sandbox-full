@@ -27,10 +27,10 @@ export function assign(state,target,{guard,billable,status='staff'}){
  }else next.overrides[id]={...next.overrides[id],guard:status==='staff'?guard:'',billable,blank:status==='blank',role:status==='open'?'open':prior.role==='open'?'coverage':prior.role,note:status==='open'?'Needs coverage':status==='staff'?'Schedule assignment updated':'Blank shift'};
  return {state:next,message:'Cell updated in the test demo.'};
 }
-export function addRow(state,{post,start,end,day,guard,billable,status,platoon}){
- if(!post.trim())throw Error('Enter the post.');if(end<=start||end-start>1440)throw Error('Enter different start and end times (maximum 24 hours).');
+export function addRow(state,{post,start,end,day,guard,billable,status,platoon,quick=false}){
+ if(!post.trim()&&!quick)throw Error('Enter the post.');if(end<=start||end-start>1440)throw Error('Enter different start and end times (maximum 24 hours).');
  if(!Number.isInteger(day)||day<0||day>6)throw Error('Choose a day.');
- const next=structuredClone(state),id='custom-'+crypto.randomUUID(),row={id,post:post.trim(),start,end,p:[1,2,3].includes(+platoon)?+platoon:start>=1380||start<420?1:start>=900?3:2,guards:Array(7).fill(''),open:Array(7).fill(false),billable,sortDay:day,custom:true};next.rows.push(row);
+ const next=structuredClone(state),id='custom-'+crypto.randomUUID(),row={id,post:post.trim(),start,end,p:[1,2,3].includes(+platoon)?+platoon:start>=1380||start<420?1:start>=900?3:2,guards:Array(7).fill(''),open:Array(7).fill(false),billable,sortDay:day,custom:true,quick:!!quick};next.rows.push(row);
  return assign(next,{source:id,post:row.post,start,end,day,role:'regular',guard:''},{guard,billable,status});
 }
 export function splitCell(state,target,{post,from,to,billable,needsCover}){
@@ -43,9 +43,9 @@ export function splitCell(state,target,{post,from,to,billable,needsCover}){
 // Worksheet rows remain intact across the seven day columns.
 export function orderedGroups(state,list=ledger(state)){
  const map=new Map(),order=new Map(state.rows.map((r,i)=>[r.id,i]));
- const add=r=>{const source=state.rows.find(s=>s.id===(r.id||r.source));const derived=!!r.source&&(!source||r.post!==source.post||r.start!==source.start||r.end!==source.end);const additional=!!(source?.custom||derived);const k=[r.p,r.post,r.start,r.end,additional,source?.custom?source.id:''].join('|');if(!map.has(k))map.set(k,{...r,additional,derived,order:order.get(r.id||r.source)??10000,cells:Array.from({length:7},()=>[])});return map.get(k);};
+ const add=r=>{const source=state.rows.find(s=>s.id===(r.id||r.source));const derived=!!r.source&&(!source||r.post!==source.post||r.start!==source.start||r.end!==source.end);const additional=!!(source?.custom||derived);const k=[r.p,r.post,r.start,r.end,additional,source?.custom?source.id:''].join('|');if(!map.has(k))map.set(k,{...r,additional,derived,quick:!!source?.quick,order:order.get(r.id||r.source)??10000,cells:Array.from({length:7},()=>[])});return map.get(k);};
  state.rows.forEach(add);list.forEach(r=>add(r).cells[r.day].push(r));
- return [...map.values()].sort((a,b)=>a.p-b.p||Number(a.derived)-Number(b.derived)||a.order-b.order||a.start-b.start||a.end-b.end);
+ return [...map.values()].sort((a,b)=>a.p-b.p||Number(a.quick)-Number(b.quick)||(a.quick?(a.order-b.order||Number(a.derived)-Number(b.derived)):(Number(a.derived)-Number(b.derived)||a.order-b.order))||a.start-b.start||a.end-b.end);
 }
 export function removeRow(state,id){
  const row=state.rows.find(r=>r.id===id);if(!row)throw Error('Select an original worksheet row to delete.');
@@ -60,4 +60,10 @@ export function removeRow(state,id){
 export function restoreRow(state,archive){
  if(state.rows.some(r=>r.id===archive.row.id))throw Error('This row is already present.');
  const next=structuredClone(state);next.rows.push(structuredClone(archive.row));Object.assign(next.plans,structuredClone(archive.plans));Object.assign(next.overrides,structuredClone(archive.overrides));return next;
+}
+export function quickAddRow(state,platoon){
+ const p=Number(platoon);if(![1,2,3].includes(p))throw Error('Choose a platoon.');
+ const [start,end]=p===1?[1380,1860]:p===2?[420,900]:[900,1380];
+ const next=structuredClone(state);next.rows.push({id:'custom-'+crypto.randomUUID(),post:'',p,start,end,guards:Array(7).fill(''),open:Array(7).fill(false),billable:false,custom:true,quick:true});
+ return {state:next,message:'Blank row added to '+['First','Second','Third'][p-1]+' Platoon. Fill the guard cells; post and times are optional.'};
 }

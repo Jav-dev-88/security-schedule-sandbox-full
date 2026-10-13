@@ -85,13 +85,17 @@ The full app starts empty; it does not import sample schedules or the old app's 
 
 1. Open **Staff** and add the guard names.
 2. Open **Master Template**.
-3. Use **+ Add Row** in each platoon. Enter the post, start/end times, day, guard, and billing status.
-4. Fill the other day cells. Type a name, then press Enter or Save. With Auto-save on, clicking outside also saves.
+3. Use **+ Quick Add Row** in a platoon to create a blank row immediately. Post is blank; hours default to 23:00–07:00, 07:00–15:00, or 15:00–23:00 for that platoon. Fill the guard cells. **Add with details** remains available when you want custom post/times.
+4. Fill the day cells. Known guard names save automatically when fully typed or when you click outside. A suggested completion stays selected while you keep typing; click outside or press Enter to accept it. You do not need a Save button. A new name typed in a cell is saved as a temporary guard when you click outside or press Enter.
 5. Lock the Master.
 6. Choose a Sunday week ending and click **Create Weekly from Master**.
 7. Open **Accounts** and create Manager/Guard logins. For a Guard, select the exact schedule name. Give them a temporary password; the app requires a password change on first login.
 
 Changes are shared between devices after saving. Use Refresh to load another manager's updates. There is no continuous live push refresh.
+
+## Temporary guards
+
+Use **Staff → Add temporary guard**, or type a new name directly into a schedule cell and click outside. Temporary guards are marked **TEMP** and can be used in schedules without adding them to permanent staff. Names are shared between devices after saving. The temporary label does not expire automatically or create a login. Use **Make permanent** in Staff if a temporary guard joins the regular team.
 
 ## 7. Optional: email schedule PDFs
 
@@ -161,7 +165,7 @@ npm run deploy
 - **Temporary password cannot load schedules:** change the password when prompted.
 - **Master is locked:** unlock before editing, restoring a different Master, or deleting a Master row.
 - **Save conflict:** download the unsaved copy, reload latest, and reapply the affected edits.
-- **Name will not save:** add it to Staff first; a guard cannot work overlapping assignments. Read the error beside the cell.
+- **Name will not save:** finish typing and click outside; new names are saved as temporary guards. A guard cannot work overlapping assignments. Read the error beside the cell.
 - **Email not configured:** follow optional email setup; no email provider is enabled by default.
 
 Cloudflare references:

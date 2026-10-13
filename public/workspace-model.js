@@ -13,9 +13,9 @@ export function attendanceEvent(state,target,{type,time='',cover='',payment='PEN
   const workStart=type==='Came late'?at:target.start,workEnd=type==='Left early'?at:target.end;
   next.overrides[id]={...next.overrides[id],start:workStart,end:workEnd,note:[next.overrides[id]?.note,target.guard+' '+(type==='Left early'?'left early':'came late')+' at '+fmt(at)].filter(Boolean).join(' · ')};
   const gapStart=type==='Left early'?at:target.start,gapEnd=type==='Came late'?at:target.end;
-  const result=addRow(next,{post:target.post,start:gapStart,end:gapEnd,day:target.day,guard:cover,billable:target.billable,status:cover?'staff':'open',platoon:target.p});result.state.events=[...(state.events||[]),event];return result.state;
+  const result=addRow(next,{post:target.post,start:gapStart,end:gapEnd,day:target.day,guard:cover,billable:target.billable,status:cover?'staff':'open',platoon:target.p,quick:!!state.rows.find(r=>r.id===target.source)?.quick});result.state.events=[...(state.events||[]),event];return result.state;
  }
  if(!['Vacation','Sick','Personal','Call-out','Unpaid leave'].includes(type))throw Error('Choose the leave type.');
  next.overrides[id]={blank:true};
- const result=addRow(next,{post:target.post,start:target.start,end:target.end,day:target.day,guard:cover,billable:target.billable,status:cover?'staff':'open',platoon:target.p});result.state.events=[...(state.events||[]),event];return result.state;
+ const result=addRow(next,{post:target.post,start:target.start,end:target.end,day:target.day,guard:cover,billable:target.billable,status:cover?'staff':'open',platoon:target.p,quick:!!state.rows.find(r=>r.id===target.source)?.quick});result.state.events=[...(state.events||[]),event];return result.state;
 }
