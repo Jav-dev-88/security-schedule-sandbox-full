@@ -3,6 +3,7 @@ const sameName=(a,b)=>String(a||'').trim().toLowerCase()===String(b||'').trim().
 export function assignmentClassifier(master,state){
  const normal=master?ledger(master):[];
  return shift=>{
+  if(shift.paidHoliday)return {...shift,isCoverage:false};
   if(!shift.guard)return {...shift,isCoverage:false};
   const event=(state.events||[]).find(e=>e.day===shift.day&&e.post===shift.post&&!sameName(e.guard,shift.guard)&&Math.max(e.coverageStart??e.start,shift.start)<Math.min(e.coverageEnd??e.end,shift.end)&&(e.coverageSource?e.coverageSource===shift.source:sameName(e.cover,shift.guard)));
   const matches=normal.filter(r=>r.day===shift.day&&(r.post===shift.post||r.source===shift.source&&['regular','return'].includes(shift.role))&&Math.max(r.start,shift.start)<Math.min(r.end,shift.end));

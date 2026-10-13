@@ -73,3 +73,17 @@ test('Renaming a regular post keeps Master guards regular while only the replace
  assert.equal(shifts[1].isCoverage,false);assert.equal(shifts[2].isCoverage,false);
  const empty={rows:[],plans:{},overrides:{}};assert.equal(assignmentClassifier(empty,weekly)(shifts[1]).isCoverage,false);
 });
+
+test('Paid holiday off retains the guard, credits pay once, excludes work/billing and can return to work',async()=>{
+ const {assignmentClassifier}=await import('../public/assignment-status.js');
+ const state={rows:[{...row('holiday','Guard A'),billable:true}],plans:{},overrides:{},events:[]};
+ const target=ledger(state)[0],off=attendanceEvent(state,target,{type:'Paid holiday — off',paidHours:8});
+ assert.equal(off.rows.length,1);assert.equal(off.rows[0].guards[0],'Guard A');
+ const displayed=ledger(off)[0];assert.equal(displayed.paidHoliday,true);assert.equal(displayed.billable,false);
+ assert.equal(assignmentClassifier(state,off)(displayed).isCoverage,false);
+ const summary=payrollSummary(off)[0];assert.equal(summary.worked,0);assert.equal(summary.billable,0);assert.equal(summary.paidLeave,8);assert.equal(summary.payable,8);
+ const repeated=attendanceEvent(off,displayed,{type:'Paid holiday — off',paidHours:6});assert.equal(repeated.events.length,1);assert.equal(payrollSummary(repeated)[0].payable,6);
+ const restored=attendanceEvent(off,displayed,{type:'Return to work (remove holiday off)'});assert.equal(restored.events.length,0);assert.equal(payrollSummary(restored)[0].worked,8);
+ assert.equal(state.events.length,0);assert.throws(()=>attendanceEvent(state,target,{type:'Paid holiday — off',paidHours:9}),/paid holiday hours/);
+ const {schedulePdf}=await import('../src/pdf.js');assert.match(new TextDecoder().decode(schedulePdf(off,'2026-10-18',state)),/0.85 0.95 0.87 rg/);
+});
