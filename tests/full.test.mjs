@@ -26,3 +26,24 @@ test('Temporary names are unique and warnings identify real coverage gaps, missi
 test('Full-shift attendance replaces the existing cell, preserves the absence and lets coverage update later',async()=>{const {attendanceCoverage}=await import('../public/workspace-model.js');let state={version:2,rows:[row('regular','Guard A')],plans:{},overrides:{},events:[]};const before=structuredClone(state),target=ledger(state)[0];let covered=attendanceEvent(state,target,{type:'Sick',cover:'Guard B',payment:'PAID',paidHours:8});assert.equal(covered.rows.length,1);assert.equal(covered.rows[0].guards[0],'Guard B');assert.equal(covered.events[0].guard,'Guard A');assert.equal(covered.events[0].coverageSource,'regular');assert.equal(covered.events[0].paidHours,8);assert.equal(payrollSummary(covered).find(r=>r.guard==='Guard B').worked,8);assert.deepEqual(state,before);let pending=attendanceEvent(state,target,{type:'Call-out'});assert.equal(pending.rows.length,1);assert.equal(pending.rows[0].open[0],true);const open=ledger(pending)[0];const {assign}=await import('../public/editor-model.js');pending=assign(pending,open,{guard:'Guard B',billable:false,status:'staff'}).state;assert.equal(attendanceCoverage(pending,pending.events[0]),'Guard B');assert.equal(pending.rows.length,1);const busy=structuredClone(state);busy.rows.push(row('elsewhere','Guard B'));assert.throws(()=>attendanceEvent(busy,ledger(busy)[0],{type:'Sick',cover:'Guard B'}),/already has a shift/);});
 test('Repair identifies only older full-shift coverage duplicates and keeps log/payroll data',async()=>{const {repairFullShiftCoverage}=await import('../public/workspace-model.js');const old={version:2,rows:[row('regular','Guard A'),{...row('legacy','Guard B'),post:'Post regular',custom:true}],plans:{},overrides:{'regular|0|regular|420|900':{blank:true}},events:[{id:'absence',guard:'Guard A',day:0,post:'Post regular',start:420,end:900,type:'Sick',cover:'Guard B',payment:'PAID',paidHours:8}]};const summary=payrollSummary(old),result=repairFullShiftCoverage(old);assert.equal(result.count,1);assert.equal(result.removedRows[0].guards[0],'Guard B');assert.equal(result.state.rows.length,1);assert.equal(result.state.rows[0].guards[0],'Guard B');assert.equal(result.state.events[0].guard,'Guard A');assert.equal(result.state.events[0].paidHours,8);assert.deepEqual(payrollSummary(result.state).map(r=>[r.guard,r.worked,r.paidLeave]),summary.map(r=>[r.guard,r.worked,r.paidLeave]));assert.equal(repairFullShiftCoverage(result.state).count,0);const changed=structuredClone(old);changed.rows[1].guards[1]='Guard B';assert.equal(repairFullShiftCoverage(changed).count,0,'A row used on another day is not removed');});
 test('Temporary passwords are random, usable, and meet account requirements',async()=>{const {generateTemporaryPassword}=await import('../public/passwords.js');const passwords=Array.from({length:100},generateTemporaryPassword);assert.equal(new Set(passwords).size,100);assert(passwords.every(p=>p.length===16&&/[a-z]/.test(p)&&/[A-Z]/.test(p)&&/[2-9]/.test(p)&&/[!@#$%]/.test(p)),'Generated passwords must meet requirements');});
+
+test('Assigning the original cell after deleting legacy sick coverage releases its hidden marker',async()=>{
+ const {assign}=await import('../public/editor-model.js');
+ const original={...row('regular','Gobardhan'),guards:['Gobardhan','Other Guard','','','','','']};
+ const state={version:2,rows:[original,{...row('legacy','Assouman'),post:original.post,custom:true}],plans:{},overrides:{'regular|0|regular|420|900':{blank:true}},events:[{id:'sick',guard:'Gobardhan',day:0,post:original.post,start:420,end:900,type:'Sick',cover:'Assouman',payment:'PAID',paidHours:8}]};
+ const deleted=removeRow(state,'legacy').state,before=structuredClone(deleted);
+ const target={source:'regular',day:0,role:'regular',start:420,end:900,post:original.post,guard:''};
+ assert.equal(ledger(deleted).filter(r=>r.day===0).length,0);
+ const updated=assign(deleted,target,{guard:'Assouman',billable:false}).state;
+ assert.equal(updated.rows.length,1);
+ assert.equal(ledger(updated).find(r=>r.day===0).guard,'Assouman');
+ assert.equal(updated.rows[0].guards[1],'Other Guard');
+ assert.deepEqual(updated.events,deleted.events);
+ assert.deepEqual(deleted,before);
+ assert.equal(payrollSummary(updated).find(r=>r.guard==='Assouman').worked,8);
+ assert.equal(payrollSummary(updated).find(r=>r.guard==='Gobardhan').paidLeave,8);
+ const reopened=assign(deleted,target,{guard:'',billable:false,status:'open'}).state;
+ assert.equal(ledger(reopened).find(r=>r.day===0).role,'open');
+ const complex=structuredClone(deleted);complex.overrides['regular|0|regular|420|900']={blank:true,end:600};
+ assert.deepEqual(assign(complex,target,{guard:'Assouman',billable:false}).state.overrides,complex.overrides);
+});

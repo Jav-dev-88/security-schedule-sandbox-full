@@ -22,7 +22,12 @@ export function assign(state,target,{guard,billable,status='staff'}){
  const row=next.rows.find(r=>r.id===target.source);
  if(!row)throw Error('This test row is no longer available.');
  const baseline=(prior.role==='regular'||(prior.role==='open'&&!next.plans[key(row.id,target.day)]))&&target.start===row.start&&target.end===row.end;
- if(baseline){row.guards[target.day]=status==='staff'?guard:'';(row.open??=Array(7).fill(false))[target.day]=status==='open';(row.billing??=Array(7).fill(row.billable))[target.day]=billable;
+ if(baseline){
+  // Older full-shift attendance hid the original cell with a blank-only override.
+  // Explicitly editing that cell must release the marker, while preserving split overrides.
+  const hiddenKey=[row.id,target.day,'regular',row.start,row.end].join('|'),hidden=next.overrides[hiddenKey];
+  if(hidden?.blank===true&&Object.keys(hidden).length===1&&!next.plans[key(row.id,target.day)])delete next.overrides[hiddenKey];
+  row.guards[target.day]=status==='staff'?guard:'';(row.open??=Array(7).fill(false))[target.day]=status==='open';(row.billing??=Array(7).fill(row.billable))[target.day]=billable;
   if(status!=='staff')delete next.plans[key(row.id,target.day)];
  }else next.overrides[id]={...next.overrides[id],guard:status==='staff'?guard:'',billable,blank:status==='blank',role:status==='open'?'open':prior.role==='open'?'coverage':prior.role,note:status==='open'?'Needs coverage':status==='staff'?'Schedule assignment updated':'Blank shift'};
  return {state:next,message:'Cell updated in the test demo.'};
