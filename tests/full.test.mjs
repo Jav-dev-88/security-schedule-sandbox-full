@@ -110,3 +110,11 @@ test('Hours-only adjustments add/subtract payable credit, edit without duplicati
  w.master.adjustments=next.adjustments;assert.deepEqual(generateWeek(w,'2026-11-01').weeks['2026-11-01'].adjustments,[]);
  next.isTest=true;assert.deepEqual(payrollSummary(next),[]);
 });
+
+test('Full-shift sick records allow self-service post/time edits while preserving absence history and linking current coverage',async()=>{
+ const {editRowFields}=await import('../public/editor-model.js');const {attendanceCoverage}=await import('../public/workspace-model.js');
+ const state={rows:[row('original','Guard A')],plans:{},overrides:{},events:[]};
+ const covered=attendanceEvent(state,ledger(state)[0],{type:'Sick',cover:'Guard B',payment:'PAID',paidHours:8,note:'Original absence'});
+ const edited=editRowFields(covered,'original',{post:'Renamed post',start:480,end:960}).state;
+ assert.equal(edited.rows[0].guards[0],'Guard B');assert.equal(edited.events[0].guard,'Guard A');assert.equal(edited.events[0].post,'Post original');assert.equal(edited.events[0].start,420);assert.equal(edited.events[0].paidHours,8);assert.equal(edited.events[0].coverageStart,480);assert.equal(attendanceCoverage(edited,edited.events[0]),'Guard B');assert.equal(payrollSummary(edited).find(r=>r.guard==='Guard B').worked,8);assert.equal(covered.rows[0].post,'Post original');
+});

@@ -81,7 +81,22 @@ export function editRowFields(state,id,patch){
  if(![1,2,3].includes(p)||!Number.isInteger(start)||start<0||start>=1440||!Number.isInteger(rawEnd)||rawEnd<0||rawEnd>=2880)throw Error('Enter valid military times.');
  const endClock=rawEnd%1440;if(endClock===start)throw Error('Start and end cannot be the same time.');const end=endClock<=start?endClock+1440:endClock;
  const changed=start!==row.start||end!==row.end||post!==row.post||p!==row.p;
- if(changed){const linked=Object.entries(next.plans).some(([key,plan])=>key.startsWith(id+'|')||(plan.post===row.post&&plan.from===row.start&&plan.to===row.end))||Object.keys(next.overrides).some(key=>key.startsWith(id+'|'))||(next.events||[]).some(e=>e.source===id||e.coverageSource===id||(e.post===row.post&&e.start===row.start&&e.end===row.end&&row.guards.includes(e.guard)));if(linked)throw Error('This row has split or attendance records. Review those assignments before changing its post or times; no records were removed.');}
+ if(changed){
+  const split=Object.entries(next.plans).some(([k,plan])=>k.startsWith(id+'|')||(plan.post===row.post&&plan.from===row.start&&plan.to===row.end));
+  const overrides=Object.entries(next.overrides).filter(([k])=>k.startsWith(id+'|'));
+  const complexOverride=overrides.some(([k,v])=>k.split('|')[2]!=='regular'||Number(k.split('|')[3])!==row.start||Number(k.split('|')[4])!==row.end||Object.keys(v).some(field=>field!=='blank'));
+  const partial=(next.events||[]).some(e=>(e.source===id||e.coverageSource===id)&&['Left early','Came late'].includes(e.type));
+  if(split||complexOverride||partial)throw Error('This row has split or attendance times for part of a shift. Edit the individual split assignments first; the saved records were kept.');
+  for(const [k,v]of overrides){delete next.overrides[k];const parts=k.split('|');parts[3]=start;parts[4]=end;next.overrides[parts.join('|')]=v;}
+  for(const e of next.events||[]){
+   if(e.coverageSource===id&&e.coverageStart===row.start&&e.coverageEnd===row.end){e.coverageStart=start;e.coverageEnd=end;}
+   if(e.source===id&&e.type==='Paid holiday — off'){
+    if(Number(e.paidHours||0)>Math.min(8,(end-start)/60))throw Error('Reduce this holiday paid-hours entry before shortening the shift.');
+    e.start=start;e.end=end;e.post=post;
+   }
+  }
+ }
+
  Object.assign(row,{post,p,start,end});if('billable'in patch){row.billable=!!patch.billable;delete row.billing;}
  if(start!==original.start||end!==original.end){const list=ledger(next).filter(r=>r.guard&&!r.paidHoliday);for(const a of list.filter(r=>r.source===id))for(const b of list){if(b.source===id||a.guard!==b.guard)continue;const lo=Math.max(a.day*1440+a.start,b.day*1440+b.start),hi=Math.min(a.day*1440+a.end,b.day*1440+b.end);if(lo<hi)throw Error(a.guard+' already has another shift during these times. The time change was not applied.');}}
  return {state:next,message:'Row updated. Hours recalculated automatically.'};

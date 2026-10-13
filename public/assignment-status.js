@@ -5,7 +5,7 @@ export function assignmentClassifier(master,state){
  return shift=>{
   if(shift.paidHoliday)return {...shift,isCoverage:false};
   if(!shift.guard)return {...shift,isCoverage:false};
-  const event=(state.events||[]).find(e=>e.day===shift.day&&e.post===shift.post&&!sameName(e.guard,shift.guard)&&Math.max(e.coverageStart??e.start,shift.start)<Math.min(e.coverageEnd??e.end,shift.end)&&(e.coverageSource?e.coverageSource===shift.source:sameName(e.cover,shift.guard)));
+  const event=(state.events||[]).find(e=>e.day===shift.day&&(e.coverageSource===shift.source||e.post===shift.post)&&!sameName(e.guard,shift.guard)&&Math.max(e.coverageStart??e.start,shift.start)<Math.min(e.coverageEnd??e.end,shift.end)&&(e.coverageSource?e.coverageSource===shift.source:sameName(e.cover,shift.guard)));
   const matches=normal.filter(r=>r.day===shift.day&&(r.post===shift.post||r.source===shift.source&&['regular','return'].includes(shift.role))&&Math.max(r.start,shift.start)<Math.min(r.end,shift.end));
   const own=matches.filter(r=>sameName(r.guard,shift.guard)).sort((a,b)=>a.start-b.start);
   let coveredTo=shift.start;for(const r of own)if(r.start<=coveredTo)coveredTo=Math.max(coveredTo,r.end);
