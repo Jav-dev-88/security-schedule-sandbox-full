@@ -164,3 +164,5 @@ async function deleteSplitWithImage(group){if(!group||!canEdit())return;try{
  }catch(e){status('Split kept: '+e.message,true);}}
 
 $('addVacation').onclick=async()=>{try{await savesFinished();const next=addVacation(workspace,{guard:$('vacationGuard').value,from:$('vacationFrom').value,to:$('vacationTo').value,payment:$('vacationPay').value,note:$('vacationNote').value.trim()});await saveBlocking(next,'Added vacation for '+$('vacationGuard').value+' from '+$('vacationFrom').value+' through '+$('vacationTo').value);workspace=next;state=structuredClone(next.weeks[next.activeWeek]);history=[];$('vacationError').textContent='';render();status('Vacation saved. All affected shifts need coverage.');}catch(e){$('vacationError').textContent=e.message;}};
+
+$('vacationFrom').onchange=()=>{const start=$('vacationFrom').value;if(!start)return;const end=new Date(start+'T12:00:00Z');if(!Number.isFinite(+end))return;end.setUTCDate(end.getUTCDate()+6);$('vacationTo').value=end.toISOString().slice(0,10);};
