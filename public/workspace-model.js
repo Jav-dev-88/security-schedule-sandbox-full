@@ -1,10 +1,17 @@
 import {fmt} from './model.js';
-import {initialState,ledger,segmentKey,addRow,assign} from './editor-model.js';
+import {initialState,ledger,segmentKey,addRow,assign,linkedRows,linkedParts} from './editor-model.js';
 export function createWorkspace(weekly){return {version:1,master:initialState(),masterLocked:false,weeks:{'2026-10-11':structuredClone(weekly)},activeWeek:'2026-10-11',mode:'weekly',staff:[]};}
 export function datesForWeek(end){if(!/^\d{4}-\d{2}-\d{2}$/.test(end))throw Error('Choose the week-ending date.');const d=new Date(end+'T12:00:00Z');if(!Number.isFinite(+d)||d.toISOString().slice(0,10)!==end||d.getUTCDay()!==0)throw Error('Choose a Sunday week ending.');return Array.from({length:7},(_,i)=>{const day=new Date(d);day.setUTCDate(day.getUTCDate()-6+i);return day.toISOString().slice(0,10);});}
 export function generateWeek(workspace,end,{overwrite=false}={}){datesForWeek(end);if(workspace.weeks[end]&&!overwrite)throw Error('This test week already exists.');const copy=structuredClone(workspace);copy.weeks[end]=structuredClone(copy.master);copy.weeks[end].events=[];copy.weeks[end].adjustments=[];copy.weeks[end].moves=[];for(const row of copy.weeks[end].rows)for(let day=0;day<7;day++)if((copy.inactiveStaff||[]).some(n=>n.toLowerCase()===row.guards[day].toLowerCase())){row.guards[day]='';(row.open??=Array(7).fill(false))[day]=true;delete copy.weeks[end].plans[row.id+'|'+day];for(const k of Object.keys(copy.weeks[end].overrides))if(k.startsWith(row.id+'|'+day+'|'))delete copy.weeks[end].overrides[k];}for(const p of Object.values(copy.weeks[end].plans))if((copy.inactiveStaff||[]).includes(p.replacement))p.replacement='';for(const o of Object.values(copy.weeks[end].overrides))if((copy.inactiveStaff||[]).includes(o.guard)){o.guard='';o.blank=false;o.role='open';}copy.activeWeek=end;copy.mode='weekly';copy.weeks[end]=applySavedVacations(copy.weeks[end],end,copy.vacations||[]);return copy;}
 export function saveActive(workspace,state){const copy=structuredClone(workspace);if(copy.mode==='master'){if(copy.masterLocked)throw Error('Master is locked. Unlock it to edit.');copy.master=structuredClone(state);}else copy.weeks[copy.activeWeek]=structuredClone(state);return copy;}
-export function attendanceEvent(state,target,{type,time='',cover='',payment='PENDING',paidHours=0,note=''}){
+export function attendanceEvent(state,target,fields){const parts=linkedParts(state,target).sort((a,b)=>a.start-b.start);if(parts.length<2)return attendanceSingle(state,target,fields);
+ const partial=['Left early','Came late'].includes(fields.type),at=Number(fields.time);if(partial&&(!Number.isFinite(at)||at<=parts[0].start||at>=parts.at(-1).end))throw Error('Enter a time inside the linked 08:30–16:30 shift.');let next=structuredClone(state),remaining=Number(fields.paidHours||0);
+ for(const part of parts){if(!ledger(next).some(r=>segmentKey(r)===segmentKey(part)&&r.guard===target.guard))continue;let fullGap=false;if(partial){if(fields.type==='Left early'&&part.end<=at||fields.type==='Came late'&&part.start>=at)continue;fullGap=fields.type==='Left early'?part.start>=at:part.end<=at;}
+ const credit=Math.min((part.end-part.start)/60,Math.max(0,remaining));next=attendanceSingle(next,part,{...fields,paidHours:credit,_skipVacationCascade:true,_fullGap:fullGap,_allowZeroHoliday:true});remaining-=credit;
+ }
+ if(fields.type==='Vacation'){const other=ledger(next).find(r=>r.guard===target.guard&&r.day===target.day);if(other)return attendanceEvent(next,other,fields);}return next;
+}
+function attendanceSingle(state,target,{type,time='',cover='',payment='PENDING',paidHours=0,note='',_skipVacationCascade=false,_fullGap=false,_allowZeroHoliday=false}){
  if(cover&&cover===target.guard)throw Error('Choose another covering guard.');
  if(!target.guard)throw Error('Choose a staffed cell.');const next=structuredClone(state),id=segmentKey(target),hours=(target.end-target.start)/60;
  if(type==='Paid holiday — off'||type==='Return to work (remove holiday off)'){
@@ -13,21 +20,22 @@ export function attendanceEvent(state,target,{type,time='',cover='',payment='PEN
   next.events=(next.events||[]).filter(e=>!(e.type==='Paid holiday — off'&&e.source===target.source&&e.day===target.day&&e.guard===target.guard));
   if(type==='Return to work (remove holiday off)')return next;
   if(cover)throw Error('Holiday off keeps the guard visible. Add any working coverage separately.');
-  const credit=Number(paidHours);if(!Number.isFinite(credit)||credit<=0||credit>Math.min(8,hours))throw Error('Enter paid holiday hours above 0 and no more than 8 or the shift length.');
+  const credit=Number(paidHours);if(!Number.isFinite(credit)||(credit<=0&&!_allowZeroHoliday)||credit<0||credit>Math.min(8,hours))throw Error('Enter paid holiday hours above 0 and no more than 8 or the shift length.');
   next.events.push({id:crypto.randomUUID(),source:target.source,guard:target.guard,day:target.day,post:target.post,start:target.start,end:target.end,type,payment:'PAID',paidHours:credit,requestedHours:credit,note});return next;
  }
  const event={id:crypto.randomUUID(),source:target.source,coverageSource:target.source,coverageStart:target.start,coverageEnd:target.end,guard:target.guard,day:target.day,post:target.post,start:target.start,end:target.end,type,time,cover,payment,requestedHours:Math.min(8,hours),paidHours:payment==='PAID'?Math.max(0,Math.min(8,hours,Number(paidHours)||0)):0,note};
  if(type==='Call-out'){event.payment='UNPAID';event.paidHours=0;event.requestedHours=0;}
- if(type==='Left early'||type==='Came late'){
+ if((type==='Left early'||type==='Came late')&&!_fullGap){
   const at=Number(time);if(!Number.isFinite(at)||at<=target.start||at>=target.end)throw Error('Enter a time inside this shift.');event.payment='WORKED_ONLY';event.paidHours=0;
   const workStart=type==='Came late'?at:target.start,workEnd=type==='Left early'?at:target.end;
   next.overrides[id]={...next.overrides[id],start:workStart,end:workEnd,note:[next.overrides[id]?.note,target.guard+' '+(type==='Left early'?'left early':'came late')+' at '+fmt(at)].filter(Boolean).join(' · ')};
   const gapStart=type==='Left early'?at:target.start,gapEnd=type==='Came late'?at:target.end;
   ensureCoverAvailable(next,{...target,start:gapStart,end:gapEnd},cover);const result=addRow(next,{post:target.post,start:gapStart,end:gapEnd,day:target.day,guard:cover,billable:target.billable,status:cover?'staff':'open',platoon:target.p,quick:!!state.rows.find(r=>r.id===target.source)?.quick});event.coverageSource=result.state.rows.at(-1).id;event.coverageStart=gapStart;event.coverageEnd=gapEnd;result.state.events=[...(state.events||[]),event];return result.state;
  }
- if(!['Vacation','Sick','Personal','Call-out','Unpaid leave'].includes(type))throw Error('Choose the leave type.');
- ensureCoverAvailable(next,target,cover);const result=assign(next,target,{guard:cover,billable:target.billable,status:cover?'staff':'open'});result.state.events=[...(state.events||[]),event];
- if(type==='Vacation'){const other=ledger(result.state).find(r=>r.guard===target.guard&&r.day===target.day);if(other)return attendanceEvent(result.state,other,{type,cover,payment,paidHours,note});}
+ if(!_fullGap&&!['Vacation','Sick','Personal','Call-out','Unpaid leave'].includes(type))throw Error('Choose the leave type.');
+ if(_fullGap){event.payment='WORKED_ONLY';event.paidHours=0;event.note=[note,'Linked shift: '+type+' at '+fmt(Number(time))].filter(Boolean).join(' · ');}
+ ensureCoverAvailable(next,target,cover);const result=assign(next,target,{guard:cover,billable:target.billable,status:cover?'staff':'open',linked:false});result.state.events=[...(state.events||[]),event];
+ if(type==='Vacation'&&!_skipVacationCascade){const other=ledger(result.state).find(r=>r.guard===target.guard&&r.day===target.day);if(other)return attendanceEvent(result.state,other,{type,cover,payment,paidHours,note});}
  return result.state;
 }
 
@@ -42,5 +50,5 @@ export function removeAttendanceRecord(state,id){
 }
 
 export function validateVacation(v){const validDate=d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&Number.isFinite(Date.parse(d+'T12:00:00Z'))&&new Date(d+'T12:00:00Z').toISOString().slice(0,10)===d;if(!v||typeof v.id!=='string'||!v.id||typeof v.guard!=='string'||!v.guard.trim()||v.guard.length>80||!validDate(v.from)||!validDate(v.to)||v.to<v.from||!['PENDING','PAID','UNPAID'].includes(v.payment)||typeof v.note!=='string'||v.note.length>300)throw Error('Choose a guard, valid vacation dates, and payment status.');return v;}
-export function applySavedVacations(state,end,vacations){let next=structuredClone(state);const dates=datesForWeek(end);for(const v of vacations){for(let day=0;day<7;day++){if(dates[day]<v.from||dates[day]>v.to)continue;const targets=ledger(next).filter(r=>r.guard===v.guard&&r.day===day);for(const target of targets){if(!ledger(next).some(r=>r.guard===v.guard&&segmentKey(r)===segmentKey(target)))continue;if(target.paidHoliday)throw Error('Review the paid holiday entry for '+v.guard+' on '+dates[day]+' before adding vacation.');const eventCount=(next.events||[]).length;next=attendanceEvent(next,target,{type:'Vacation',payment:v.payment,paidHours:Math.min(8,(target.end-target.start)/60),note:v.note||'Vacation '+v.from+' through '+v.to});for(const event of next.events.slice(eventCount))event.vacationId=v.id;}}}return next;}
+export function applySavedVacations(state,end,vacations){let next=structuredClone(state);const dates=datesForWeek(end);for(const v of vacations){for(let day=0;day<7;day++){if(dates[day]<v.from||dates[day]>v.to)continue;const targets=ledger(next).filter(r=>r.guard===v.guard&&r.day===day);for(const target of targets){if(!ledger(next).some(r=>r.guard===v.guard&&segmentKey(r)===segmentKey(target)))continue;if(target.paidHoliday)throw Error('Review the paid holiday entry for '+v.guard+' on '+dates[day]+' before adding vacation.');const eventCount=(next.events||[]).length;next=attendanceEvent(next,target,{type:'Vacation',payment:v.payment,paidHours:8,note:v.note||'Vacation '+v.from+' through '+v.to});for(const event of next.events.slice(eventCount))event.vacationId=v.id;}}}return next;}
 export function addVacation(workspace,fields){const v=validateVacation({...fields,id:crypto.randomUUID(),created:new Date().toISOString()});const next=structuredClone(workspace);next.vacations??=[];if(next.vacations.some(old=>old.guard===v.guard&&old.from<=v.to&&old.to>=v.from))throw Error('This guard already has vacation recorded in that date range.');next.vacations.push(v);for(const [end,state]of Object.entries(next.weeks))next.weeks[end]=applySavedVacations(state,end,[v]);return next;}

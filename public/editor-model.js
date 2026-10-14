@@ -4,7 +4,19 @@ export const segmentKey=r=>r.editKey||[r.source,r.day,r.role,r.start,r.end].join
 export function applyRows(state){BASE.splice(0,BASE.length,...structuredClone(state.rows));}
 export function ledger(state){applyRows(state);return segments(state.plans).map(r=>({...r,editKey:segmentKey(r),...state.overrides[segmentKey(r)]})).filter(r=>!r.blank).map(r=>{const holiday=(state.events||[]).find(e=>e.type==='Paid holiday — off'&&e.source===r.source&&e.day===r.day&&e.guard===r.guard&&e.start===r.start&&e.end===r.end);const move=(state.moves||[]).slice().reverse().find(m=>m.day===r.day&&m.start===r.start&&m.end===r.end&&(m.source===r.source||m.destination===r.source&&m.guard===r.guard));if(move&&!holiday){if(move.source===r.source&&r.guard!==move.guard)return {...r,moveCoverage:!!r.guard,moveNote:r.guard?r.guard+' covering '+move.guard+' — '+move.guard+' moved to '+move.toPost:move.guard+' moved to cover '+move.toPost,note:r.guard?r.guard+' covering '+move.guard+' — '+move.guard+' moved to '+move.toPost:move.guard+' moved to cover '+move.toPost};if(move.destination===r.source)return {...r,moveCoverage:true,moveNote:'Moved from '+move.fromPost+' to cover '+move.toPost,note:'Moved from '+move.fromPost+' to cover '+move.toPost};}return holiday?{...r,paidHoliday:true,billable:false,note:'Paid holiday — off duty',holidayHours:holiday.payment==='PAID'?Number(holiday.paidHours||0):0}:r;});}
 export function initialState(){return {version:2,rows:structuredClone(initialRows),plans:{},overrides:{}};}
-export function assign(state,target,{guard,billable,status='staff'}){
+export function linkedRows(state,target){const selected=state.rows.find(r=>r.id===target.source);if(!selected)return [];const first=state.rows.filter(r=>r.start===510&&r.end===900),second=state.rows.filter(r=>r.start===900&&r.end===990);let pair=[];
+ if(selected.linkedShift){const saved=state.rows.filter(r=>r.linkedShift===selected.linkedShift);if(saved.length===2&&saved.some(r=>r.start===510&&r.end===900)&&saved.some(r=>r.start===900&&r.end===990))return saved.sort((a,b)=>a.start-b.start);}
+ if(first.length===1&&second.length===1)pair=[first[0],second[0]];
+ else{const pairs=first.flatMap(a=>second.map(b=>({rows:[a,b],score:a.guards.reduce((n,g,d)=>n+(g&&g===b.guards[d]?1:0),0)}))).sort((a,b)=>b.score-a.score);if(pairs[0]?.score>0&&(!pairs[1]||pairs[0].score>pairs[1].score))pair=pairs[0].rows;}
+ return pair.some(r=>r.id===target.source)?pair:[];
+}
+export function linkedParts(state,target){const rows=linkedRows(state,target);if(!rows.length)return [];const list=ledger(state);return rows.flatMap(row=>list.filter(r=>r.source===row.id&&r.day===target.day&&r.guard===target.guard));}
+export function assign(state,target,fields){const rows=fields.linked===false?[]:linkedRows(state,target);if(rows.length===2&&['regular','open'].includes(target.role)&&rows.some(r=>r.id===target.source&&r.start===target.start&&r.end===target.end)){
+ const other=rows.find(r=>r.id!==target.source),otherGuard=other.guards[target.day];if(otherGuard&&otherGuard!==target.guard&&otherGuard!==fields.guard)throw Error('The linked parts have different guards. Uncheck Apply to both parts to edit this part only.');
+ let next=assignOne(state,target,fields).state;const group='linked-'+rows.map(r=>r.id).join('-');for(const part of next.rows.filter(r=>rows.some(source=>source.id===r.id)))part.linkedShift=group;const companion=ledger(next).find(r=>r.source===other.id&&r.day===target.day)||{source:other.id,post:other.post,p:other.p,day:target.day,start:other.start,end:other.end,role:'regular',guard:other.guards[target.day]||''};next=assignOne(next,companion,{...fields,billable:other.billing?.[target.day]??other.billable}).state;return {state:next,message:'Both parts of the linked 08:30–16:30 shift updated. Total: 8 hours.'};}
+ return assignOne(state,target,fields);
+}
+function assignOne(state,target,{guard,billable,status='staff'}){
  const next=structuredClone(state),list=ledger(next),id=segmentKey(target),prior=list.find(r=>segmentKey(r)===id)||target;
  if(guard&&status==='staff'){
   const a=target.day*1440+target.start,b=target.day*1440+target.end;
@@ -14,7 +26,7 @@ export function assign(state,target,{guard,billable,status='staff'}){
    if(overlaps.length!==1||existing.day!==target.day||existing.start>target.start||existing.end<target.end||next.plans[key(existing.source,existing.day)]||owner.guards[existing.day]!==guard)throw Error(guard+' already works then. Use “Part at another post” on their original cell.');
    const destination=next.rows.find(r=>r.id===target.source);
    if(!prior.guard&&existing.p===target.p&&existing.start===target.start&&existing.end===target.end&&destination&&destination.start===target.start&&destination.end===target.end&&existing.role==='regular'){
-    owner.guards[target.day]='';(owner.open??=Array(7).fill(false))[target.day]=true;
+    const linkedOriginal=linkedRows(next,{source:owner.id});owner.guards[target.day]='';(owner.open??=Array(7).fill(false))[target.day]=true;for(const part of linkedOriginal.filter(r=>r.id!==owner.id&&r.guards[target.day]===guard)){part.guards[target.day]='';(part.open??=Array(7).fill(false))[target.day]=true;next.moves??=[];next.moves.push({id:crypto.randomUUID(),guard,day:target.day,source:part.id,destination:destination.id,fromPost:part.post,toPost:target.post,start:part.start,end:part.end});}
     destination.guards[target.day]=guard;(destination.open??=Array(7).fill(false))[target.day]=false;(destination.billing??=Array(7).fill(destination.billable))[target.day]=billable;
     const hiddenKey=[destination.id,target.day,'regular',target.start,target.end].join('|');if(next.overrides[hiddenKey]?.blank&&Object.keys(next.overrides[hiddenKey]).length===1)delete next.overrides[hiddenKey];
     next.moves??=[];next.moves.push({id:crypto.randomUUID(),guard,day:target.day,source:owner.id,destination:destination.id,fromPost:existing.post,toPost:target.post,start:target.start,end:target.end});

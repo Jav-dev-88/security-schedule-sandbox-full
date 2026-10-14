@@ -182,3 +182,23 @@ test('Sunday continuation suggests a confirmed transfer, remembers No, skips dup
  const duplicate=structuredClone(w);duplicate.weeks['2026-09-27'].rows.push({...row('overnight','Assouman',1,1380,1860),guards:['','','','','','','Assouman']});assert.equal(sundayContinuationCandidates(duplicate,w.activeWeek).length,0);
  const other=structuredClone(w);other.weeks['2026-09-27'].rows[0].guards[6]='Other Guard';assert.equal(sundayContinuationCandidates(other,w.activeWeek).length,0);
 });
+
+test('08:30–16:30 linked shift updates both parts, supports separate cover and handles early/late boundaries',async()=>{
+ const {assign,linkedRows}=await import('../public/editor-model.js');
+ const state={rows:[{...row('lobby','Rasheed',2,510,900),post:'Lobby'},{...row('dock','Rasheed',3,900,990),post:'Loading Dock'}],plans:{},overrides:{},events:[]};
+ assert.equal(linkedRows(state,ledger(state)[0]).length,2);assert.equal(payrollSummary(state)[0].worked,8);
+ let next=assign(state,ledger(state)[0],{guard:'Carson',status:'staff',billable:false}).state;assert.deepEqual(next.rows.map(r=>r.guards[0]),['Carson','Carson']);assert.equal(payrollSummary(next)[0].worked,8);
+ next=assign(state,ledger(state)[0],{guard:'',status:'open',billable:false}).state;assert(next.rows.every(r=>r.open[0]));assert.equal(ledger(next).length,2);
+ next=assign(next,ledger(next)[0],{guard:'Guard B',status:'staff',billable:false,linked:false}).state;next=assign(next,ledger(next).find(r=>r.source==='dock'),{guard:'Guard C',status:'staff',billable:false,linked:false}).state;assert.deepEqual(next.rows.map(r=>r.guards[0]),['Guard B','Guard C']);
+ const sick=attendanceEvent(state,ledger(state)[0],{type:'Sick',cover:'Guard B',payment:'PAID',paidHours:8});assert.equal(sick.events.length,2);assert.deepEqual(sick.rows.map(r=>r.guards[0]),['Guard B','Guard B']);assert.equal(payrollSummary(sick).find(r=>r.guard==='Rasheed').paidLeave,8);assert.equal(payrollSummary(sick).find(r=>r.guard==='Guard B').worked,8);
+ const out=attendanceEvent(state,ledger(state)[0],{type:'Call-out'});assert(out.rows.every(r=>r.open[0]));assert.equal(out.events.length,2);
+ for(const [type,time,expected]of [['Left early',840,5.5],['Left early',960,7.5],['Came late',570,7],['Came late',930,1]]){const updated=attendanceEvent(state,ledger(state)[0],{type,time});assert.equal(payrollSummary(updated).find(r=>r.guard==='Rasheed').worked,expected,type+' '+time);assert.equal(payrollSummary(updated).find(r=>r.guard==='Rasheed').paidLeave,0);}
+ const destination={...row('other','',2,510,900),post:'Another post',open:[true,false,false,false,false,false,false]};const moving={...structuredClone(state),rows:[...structuredClone(state.rows),destination]};const moved=assign(moving,ledger(moving).find(r=>r.source==='other'),{guard:'Rasheed',billable:false}).state;assert(moved.rows.filter(r=>r.id!=='other').every(r=>r.open[0]));assert.equal(moved.rows.find(r=>r.id==='other').guards[0],'Rasheed');assert.match(ledger(moved).find(r=>r.source==='dock').note,/moved/);
+});
+
+test('Linked payroll transfer moves and removes both parts together without changing schedule rows',async()=>{
+ const {addPayrollTransfer,payrollForWeek,removePayrollTransfer}=await import('../public/payroll-transfers.js');
+ const w=newWorkspace();w.weeks={'2026-10-18':{rows:[row('lobby','Rasheed',2,510,900),row('dock','Rasheed',3,900,990)],plans:{},overrides:{},events:[]}};w.activeWeek='2026-10-18';const before=structuredClone(w.weeks);
+ const next=addPayrollTransfer(w,w.activeWeek,ledger(w.weeks[w.activeWeek])[0],'2026-10-11','Linked shift payroll correction');assert.equal(next.payrollTransfers.length,2);assert.equal(next.payrollTransfers[0].groupId,next.payrollTransfers[1].groupId);assert.equal(payrollForWeek(next,'2026-10-18')[0].worked,0);assert.equal(payrollForWeek(next,'2026-10-11')[0].worked,8);assert.deepEqual(next.weeks,before);validateWorkspace(next);
+ const restored=removePayrollTransfer(next,next.payrollTransfers[0].id);assert.equal(restored.payrollTransfers.length,0);assert.equal(payrollForWeek(restored,'2026-10-18')[0].worked,8);
+});
