@@ -171,3 +171,14 @@ test('Removing and restoring guards keeps saved payroll history and opens their 
  const future=generateWeek(next,'2026-11-01');assert.equal(future.weeks['2026-11-01'].rows[0].guards[0],'');assert.equal(future.weeks['2026-11-01'].rows[0].open[0],true);assert.equal(next.master.rows[0].guards[0],'Guard A');
  assert(activeGuardNames(restoreGuard(next,'Guard A')).includes('Guard A'));assert(!activeGuardNames(removeGuard(next,'Temp Guard 1')).includes('Temp Guard 1'));assert.deepEqual(w,before);
 });
+
+test('Sunday continuation suggests a confirmed transfer, remembers No, skips duplicates and requires evidence from prior week',async()=>{
+ const {sundayContinuationCandidates,answerSundayContinuation,payrollForWeek}=await import('../public/payroll-transfers.js');
+ const w=newWorkspace();const early={...row('sunday','Assouman',3,900,1380),guards:['','','','','','','Assouman']};w.weeks={'2026-09-27':{rows:[early],plans:{},overrides:{},events:[]},'2026-10-04':{rows:[row('monday','Assouman',1,1380,1860)],plans:{},overrides:{},events:[]}};w.activeWeek='2026-10-04';
+ const candidates=sundayContinuationCandidates(w,w.activeWeek);assert.equal(candidates.length,1);assert.equal(w.payrollTransfers,undefined);assert.equal(candidates[0].toWeek,'2026-09-27');
+ const yes=answerSundayContinuation(w,w.activeWeek,candidates[0].id,true);assert.equal(payrollForWeek(yes,'2026-09-27')[0].worked,16);assert.equal(payrollForWeek(yes,'2026-10-04')[0].worked,0);assert.equal(sundayContinuationCandidates(yes,w.activeWeek).length,0);validateWorkspace(yes);
+ const no=answerSundayContinuation(w,w.activeWeek,candidates[0].id,false);assert.equal(sundayContinuationCandidates(no,w.activeWeek).length,0);assert.equal(payrollForWeek(no,'2026-10-04')[0].worked,8);validateWorkspace(no);
+ const missing=structuredClone(w);delete missing.weeks['2026-09-27'];assert.equal(sundayContinuationCandidates(missing,w.activeWeek).length,0);
+ const duplicate=structuredClone(w);duplicate.weeks['2026-09-27'].rows.push({...row('overnight','Assouman',1,1380,1860),guards:['','','','','','','Assouman']});assert.equal(sundayContinuationCandidates(duplicate,w.activeWeek).length,0);
+ const other=structuredClone(w);other.weeks['2026-09-27'].rows[0].guards[6]='Other Guard';assert.equal(sundayContinuationCandidates(other,w.activeWeek).length,0);
+});

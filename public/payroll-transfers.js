@@ -12,3 +12,13 @@ export function payrollForWeek(workspace,week,stateOverride=null){const state=st
  for(const g of groups.values()){g.nonBillable=g.worked-g.billable;g.regular=Math.min(8,g.worked);g.extraWorked=Math.max(0,g.worked-8);g.payable=g.worked+g.paidLeave+g.adjustmentHours;}
  return [...groups.values()].sort((a,b)=>a.guard.localeCompare(b.guard)||a.day-b.day);
 }
+
+export function sundayContinuationCandidates(workspace,week){const state=workspace.weeks[week];if(!state||state.isTest)return [];const end=new Date(week+'T12:00:00Z');end.setUTCDate(end.getUTCDate()-7);const previousWeek=end.toISOString().slice(0,10),previous=workspace.weeks[previousWeek];if(!previous||previous.isTest)return [];const prior=ledger(previous).filter(r=>r.guard&&!r.paidHoliday),current=ledger(state).filter(r=>r.guard&&!r.paidHoliday&&r.day===0&&r.start===1380&&r.end===1860),candidates=[];
+ for(const shift of current){const earlier=prior.find(r=>r.guard===shift.guard&&r.day===6&&r.start===900&&r.end===1380);if(!earlier||transferForShift(workspace,week,shift))continue;
+ // Do not propose adding hours if an overnight is already recorded in the prior Sunday payroll.
+ if(prior.some(r=>r.guard===shift.guard&&r.day===6&&r.start===1380&&r.end===1860))continue;
+ const id=[week,segmentKey(shift),shift.guard,previousWeek,segmentKey(earlier)].join('::');if((workspace.continuationDecisions||[]).some(d=>d.id===id&&d.decision==='NO'))continue;
+ candidates.push({id,guard:shift.guard,shift,fromWeek:week,toWeek:previousWeek,hours:8});}
+ return candidates;
+}
+export function answerSundayContinuation(workspace,week,id,accept){const candidate=sundayContinuationCandidates(workspace,week).find(c=>c.id===id);if(!candidate)throw Error('These shifts changed. Refresh and review them again.');if(accept)return addPayrollTransfer(workspace,week,candidate.shift,candidate.toWeek,'Confirmed stayed from Sunday 15:00–23:00 into overnight 23:00–07:00');const next=structuredClone(workspace);next.continuationDecisions??=[];next.continuationDecisions.push({id,guard:candidate.guard,fromWeek:week,toWeek:candidate.toWeek,decision:'NO',created:new Date().toISOString()});return next;}
