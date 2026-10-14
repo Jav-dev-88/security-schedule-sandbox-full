@@ -202,3 +202,8 @@ test('Linked payroll transfer moves and removes both parts together without chan
  const next=addPayrollTransfer(w,w.activeWeek,ledger(w.weeks[w.activeWeek])[0],'2026-10-11','Linked shift payroll correction');assert.equal(next.payrollTransfers.length,2);assert.equal(next.payrollTransfers[0].groupId,next.payrollTransfers[1].groupId);assert.equal(payrollForWeek(next,'2026-10-18')[0].worked,0);assert.equal(payrollForWeek(next,'2026-10-11')[0].worked,8);assert.deepEqual(next.weeks,before);validateWorkspace(next);
  const restored=removePayrollTransfer(next,next.payrollTransfers[0].id);assert.equal(restored.payrollTransfers.length,0);assert.equal(payrollForWeek(restored,'2026-10-18')[0].worked,8);
 });
+
+test('Vacation day selection updates only chosen days and all linked parts on each selected day',async()=>{
+ const {vacationOnDays}=await import('../public/workspace-model.js');const a={...row('first','Rasheed',2,510,900),guards:['Rasheed','Rasheed','Rasheed','','','','']},b={...row('second','Rasheed',3,900,990),guards:['Rasheed','Rasheed','Rasheed','','','','']};const state={rows:[a,b],plans:{},overrides:{},events:[]};
+ const next=vacationOnDays(state,'Rasheed',[0,2],{payment:'PAID',paidHours:8});assert(next.rows.every(r=>r.guards[0]===''&&r.guards[2]===''));assert(next.rows.every(r=>r.guards[1]==='Rasheed'));assert.equal(next.events.length,4);assert.equal(payrollSummary(next).filter(r=>r.guard==='Rasheed').reduce((n,r)=>n+r.paidLeave,0),16);assert.equal(state.events.length,0);assert.throws(()=>vacationOnDays(state,'Rasheed',[],{}),/Choose/);
+});
