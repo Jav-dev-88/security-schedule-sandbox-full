@@ -1,0 +1,4 @@
+const same=(a,b)=>a.toLowerCase()===b.toLowerCase();
+export function activeGuardNames(w){const names=new Set([...(w.staff||[]),...(w.temporaryStaff||[])]);for(const s of [w.master,...Object.values(w.weeks)])for(const row of s.rows)for(const name of row.guards)if(name)names.add(name);return [...names].filter(name=>!(w.inactiveStaff||[]).some(n=>same(n,name))).sort((a,b)=>a.localeCompare(b,'en',{sensitivity:'base',numeric:true}));}
+export function removeGuard(w,name){if(!activeGuardNames(w).some(n=>same(n,name)))throw Error('Choose an active guard.');const next=structuredClone(w);next.inactiveStaff??=[];next.inactiveStaff.push(name);return next;}
+export function restoreGuard(w,name){const next=structuredClone(w);next.inactiveStaff=(next.inactiveStaff||[]).filter(n=>!same(n,name));return next;}

@@ -163,3 +163,11 @@ test('Payroll transfers count hours once even without a destination schedule and
  const removed=removePayrollTransfer(next,next.payrollTransfers[0].id);assert.equal(payrollForWeek(removed,'2026-10-04')[0].worked,8);assert.equal(payrollForWeek(removed,'2026-09-27').length,0);assert.deepEqual(w,original);
  const changed=structuredClone(next);changed.weeks['2026-10-04'].rows[0].guards[0]='Other Guard';assert.throws(()=>validateWorkspace(changed),/Remove the payroll transfer/);
 });
+
+test('Removing and restoring guards keeps saved payroll history and opens their shifts only in newly created weeks',async()=>{
+ const {activeGuardNames,removeGuard,restoreGuard}=await import('../public/staff-model.js');
+ const w=newWorkspace();w.staff=['Guard A','Guard B'];w.temporaryStaff=['Temp Guard 1'];w.master.rows=[row('first','Guard A'),row('temp','Temp Guard 1')];w.weeks[w.activeWeek]=structuredClone(w.master);const before=structuredClone(w),hours=payrollSummary(w.weeks[w.activeWeek]);
+ const next=removeGuard(w,'Guard A');assert(!activeGuardNames(next).includes('Guard A'));assert(activeGuardNames(next).includes('Guard B'));assert.deepEqual(next.weeks,w.weeks);assert.deepEqual(payrollSummary(next.weeks[next.activeWeek]),hours);assert.deepEqual(next.master,w.master);validateWorkspace(next);
+ const future=generateWeek(next,'2026-11-01');assert.equal(future.weeks['2026-11-01'].rows[0].guards[0],'');assert.equal(future.weeks['2026-11-01'].rows[0].open[0],true);assert.equal(next.master.rows[0].guards[0],'Guard A');
+ assert(activeGuardNames(restoreGuard(next,'Guard A')).includes('Guard A'));assert(!activeGuardNames(removeGuard(next,'Temp Guard 1')).includes('Temp Guard 1'));assert.deepEqual(w,before);
+});
