@@ -54,3 +54,19 @@ export function applySavedVacations(state,end,vacations){let next=structuredClon
 export function addVacation(workspace,fields){const v=validateVacation({...fields,id:crypto.randomUUID(),created:new Date().toISOString()});const next=structuredClone(workspace);next.vacations??=[];if(next.vacations.some(old=>old.guard===v.guard&&old.from<=v.to&&old.to>=v.from))throw Error('This guard already has vacation recorded in that date range.');next.vacations.push(v);for(const [end,state]of Object.entries(next.weeks))next.weeks[end]=applySavedVacations(state,end,[v]);return next;}
 
 export function vacationOnDays(state,guard,days,fields){if(!Array.isArray(days)||!days.length||days.some(d=>!Number.isInteger(d)||d<0||d>6))throw Error('Choose at least one vacation day.');let next=structuredClone(state),changed=false;for(const day of new Set(days)){const target=ledger(next).find(r=>r.guard===guard&&r.day===day);if(!target)continue;if(target.paidHoliday)throw Error('Review the paid holiday entry before adding vacation on that day.');next=attendanceEvent(next,target,{...fields,type:'Vacation'});changed=true;}if(!changed)throw Error('This guard has no scheduled shifts on the selected days.');return next;}
+
+export function editVacation(workspace,id,fields){
+ const next=structuredClone(workspace),old=(next.vacations||[]).find(v=>v.id===id);if(!old)throw Error('Vacation no longer exists.');
+ const v=validateVacation({...old,...fields,guard:old.guard,id});if(next.vacations.some(x=>x.id!==id&&x.guard===v.guard&&x.from<=v.to&&x.to>=v.from))throw Error('This date range overlaps another vacation.');
+ for(const [end,state] of Object.entries(next.weeks)){
+  const dates=datesForWeek(end);let updated=state;
+  for(const e of (state.events||[]).filter(e=>e.vacationId===id)){
+   if(dates[e.day]>=v.from&&dates[e.day]<=v.to){e.payment=v.payment;e.paidHours=v.payment==='PAID'?Math.min(8,(e.end-e.start)/60):0;e.note=v.note||'Vacation '+v.from+' through '+v.to;continue;}
+   const target=ledger(updated).find(r=>r.source===e.source&&r.day===e.day&&r.start===e.start&&r.end===e.end);
+   if(!target||target.guard||target.paidHoliday)throw Error('Cannot restore '+v.guard+' on '+dates[e.day]+': their original shift has coverage or was changed. Clear that coverage first, then edit the vacation dates.');
+   updated=assign(updated,target,{guard:e.guard,status:'staff',billable:target.billable,linked:false}).state;updated.events=updated.events.filter(x=>x.id!==e.id);
+  }
+  next.weeks[end]=applySavedVacations(updated,end,[v]);
+ }
+ Object.assign(old,v);return next;
+}

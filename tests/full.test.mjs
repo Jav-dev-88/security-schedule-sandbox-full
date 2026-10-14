@@ -223,3 +223,7 @@ test('Weekly OT is worked hours above 40 per guard, excludes leave/adjustments a
  const summary=withWeeklyOvertime(payrollSummary(state));assert.equal(summary.reduce((n,r)=>n+r.worked,0),48);assert.equal(summary.reduce((n,r)=>n+r.overtime,0),8);assert.equal(summary.find(r=>r.day===5).overtime,8);assert.equal(summary.find(r=>r.day===6).overtime,0);
  const w=newWorkspace();w.weeks={'2026-10-18':state};w.activeWeek='2026-10-18';const shifted=addPayrollTransfer(w,w.activeWeek,ledger(state).find(r=>r.day===5),'2026-10-11','Count in earlier payroll');assert.equal(payrollForWeek(shifted,'2026-10-18').reduce((n,r)=>n+r.worked,0),40);assert.equal(payrollForWeek(shifted,'2026-10-18').reduce((n,r)=>n+r.overtime,0),0);
 });
+
+test('Editing vacation dates restores removed uncovered days and updates saved range',async()=>{
+ const {addVacation,editVacation}=await import('../public/workspace-model.js');const w=newWorkspace();w.weeks={'2026-11-01':{rows:[{...row('vac','Samuel'),guards:['Samuel','Samuel','','','','','']}],plans:{},overrides:{},events:[]}};w.activeWeek='2026-11-01';const added=addVacation(w,{guard:'Samuel',from:'2026-10-26',to:'2026-11-09',payment:'PAID',note:''});const id=added.vacations[0].id;const edited=editVacation(added,id,{from:'2026-10-26',to:'2026-10-26',payment:'PAID',note:'Corrected'});assert.equal(edited.weeks[w.activeWeek].rows[0].guards[1],'Samuel');assert.equal(edited.weeks[w.activeWeek].events.length,1);assert.equal(added.weeks[w.activeWeek].events.length,2);assert.equal(edited.vacations[0].to,'2026-10-26');
+});
