@@ -207,3 +207,19 @@ test('Vacation day selection updates only chosen days and all linked parts on ea
  const {vacationOnDays}=await import('../public/workspace-model.js');const a={...row('first','Rasheed',2,510,900),guards:['Rasheed','Rasheed','Rasheed','','','','']},b={...row('second','Rasheed',3,900,990),guards:['Rasheed','Rasheed','Rasheed','','','','']};const state={rows:[a,b],plans:{},overrides:{},events:[]};
  const next=vacationOnDays(state,'Rasheed',[0,2],{payment:'PAID',paidHours:8});assert(next.rows.every(r=>r.guards[0]===''&&r.guards[2]===''));assert(next.rows.every(r=>r.guards[1]==='Rasheed'));assert.equal(next.events.length,4);assert.equal(payrollSummary(next).filter(r=>r.guard==='Rasheed').reduce((n,r)=>n+r.paidLeave,0),16);assert.equal(state.events.length,0);assert.throws(()=>vacationOnDays(state,'Rasheed',[],{}),/Choose/);
 });
+
+test('Open hours count coverage gaps, exclude ordinary blanks and decrease when gaps are filled',async()=>{
+ const {openHoursSummary}=await import('../public/schedule-summary.js');const {splitCell,assign}=await import('../public/editor-model.js');
+ const state={rows:[row('staffed','Guard A'),row('blank',''),{...row('open',''),open:[true,false,false,false,false,false,false]}],plans:{},overrides:{},events:[]};
+ assert.equal(openHoursSummary(state).total,8);assert.equal(openHoursSummary(state,1).total,0);
+ const split=splitCell(state,ledger(state)[0],{post:'Other post',from:600,to:720,billable:false,needsCover:true}).state;assert.equal(openHoursSummary(split).total,10);assert.equal(openHoursSummary(split).byPlatoon[2],10);
+ const filled=assign(split,ledger(split).find(r=>r.source==='staffed'&&!r.guard),{guard:'Guard B',billable:false,linked:false}).state;assert.equal(openHoursSummary(filled).total,8);
+});
+
+test('Weekly OT is worked hours above 40 per guard, excludes leave/adjustments and follows payroll transfers',async()=>{
+ const {withWeeklyOvertime}=await import('../public/payroll.js');const {payrollForWeek,addPayrollTransfer}=await import('../public/payroll-transfers.js');
+ const shifts={...row('normal','Guard A'),guards:['Guard A','Guard A','Guard A','Guard A','Guard A','Guard A','']};
+ const state={rows:[shifts],plans:{},overrides:{},events:[{guard:'Guard A',day:6,start:420,end:900,payment:'PAID',paidHours:8}],adjustments:[{id:'extra',guard:'Guard A',day:6,type:'Other paid hours',hours:8,note:'Approved credit'}]};
+ const summary=withWeeklyOvertime(payrollSummary(state));assert.equal(summary.reduce((n,r)=>n+r.worked,0),48);assert.equal(summary.reduce((n,r)=>n+r.overtime,0),8);assert.equal(summary.find(r=>r.day===5).overtime,8);assert.equal(summary.find(r=>r.day===6).overtime,0);
+ const w=newWorkspace();w.weeks={'2026-10-18':state};w.activeWeek='2026-10-18';const shifted=addPayrollTransfer(w,w.activeWeek,ledger(state).find(r=>r.day===5),'2026-10-11','Count in earlier payroll');assert.equal(payrollForWeek(shifted,'2026-10-18').reduce((n,r)=>n+r.worked,0),40);assert.equal(payrollForWeek(shifted,'2026-10-18').reduce((n,r)=>n+r.overtime,0),0);
+});
