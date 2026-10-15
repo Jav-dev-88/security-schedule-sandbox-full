@@ -105,7 +105,7 @@ function wireSubmissions(container,management=false){container.querySelectorAll(
  await savesFinished();await api('/api/submissions/'+button.dataset.id,{method:'PATCH',body:JSON.stringify({action:button.dataset.submissionAction,partnerResponse:button.dataset.partner==='true',note:management?(prompt('Decision note (optional):')||''):''})});if(management)location.reload();else await loadGuard();
  },management?'managementStatus':'requestError'));}
 
-function vacationChoiceOptions(items){return '<option value="">Choose saved vacation</option>'+items.map(v=>'<option value="'+esc(v.id)+'">'+date(v.from)+' through '+date(v.to)+' · '+esc(v.payment==='PAID'?'Paid':v.payment==='UNPAID'?'Unpaid':'Pay needs review')+'</option>').join('');}
+function vacationChoiceOptions(items){return '<option value="">Choose saved vacation</option>'+items.map(v=>'<option value="'+esc(v.id)+'">'+date(v.from)+' through '+date(v.to)+'</option>').join('');}
 function renderVacationChoices(){const selected=$('moveVacationChoice').value;$('moveVacationChoice').innerHTML=vacationChoiceOptions(guardVacations);if(guardVacations.some(v=>v.id===selected))$('moveVacationChoice').value=selected;$('moveVacationCurrent').textContent=guardVacations.length?'All your saved vacation dates are available above.':'No saved vacations found for your schedule name.';updateVacationMoveDates();}
 function updateVacationMoveDates(){const v=guardVacations.find(v=>v.id===$('moveVacationChoice').value);$('moveVacationTo').value='';if(v&&$('moveVacationFrom').value){try{$('moveVacationTo').value=vacationMoveEnd($('moveVacationFrom').value,v);}catch{}}}
 $('moveVacationChoice').onchange=$('moveVacationFrom').onchange=updateVacationMoveDates;

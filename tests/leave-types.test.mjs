@@ -7,7 +7,7 @@ test('LOA is available by default; managers can add types and change defaults wi
  const w=newWorkspace();assert(attendanceTypes(w).includes('LOA'));assert.equal(defaultLeavePayment(w,'LOA'),'UNPAID');
  const next=saveLeaveType(w,{name:' Bereavement ',payment:'PAID'});assert(attendanceTypes(next).includes('Bereavement'));assert(!w.leaveTypes);assert.equal(defaultLeavePayment(next,'Bereavement'),'PAID');assert.doesNotThrow(()=>validateWorkspace(next));
  const changed=saveLeaveType(next,{name:'bereavement',payment:'PENDING'});assert.equal(customLeaveTypes(changed).filter(t=>t.name==='Bereavement').length,1);assert.equal(defaultLeavePayment(changed,'Bereavement'),'PENDING');
- assert.throws(()=>saveLeaveType(w,{name:'sick',payment:'PAID'}),/already exists/);assert.throws(()=>saveLeaveType(w,{name:' ',payment:'UNPAID'}),/name/);assert.throws(()=>validateWorkspace({...w,leaveTypes:[{name:'Unsafe',payment:'WORKED'}]}),/payment/);
+ assert.throws(()=>saveLeaveType(w,{name:'sick',payment:'PAID'}),/already exists/);assert.throws(()=>saveLeaveType(w,{name:' ',payment:'UNPAID'}),/name/);assert.throws(()=>validateWorkspace({...w,leaveTypes:[{name:'Unsafe',payment:'WORKED'}]}),/leave type name/);
  assert(!attendanceTypes(removeLeaveType(w,'LOA')).includes('LOA'));
 });
 test('Custom full-shift leave opens both linked parts, credits at most eight hours and pays the cover separately',()=>{
