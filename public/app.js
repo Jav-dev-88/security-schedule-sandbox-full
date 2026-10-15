@@ -238,10 +238,9 @@ $('recheckVacations').onclick=$('recheckVacationsCoverage').onclick=recheckVacat
 
 function renderLeaveTypes(){
  $('builtInLeaveTypes').textContent='Included: '+BUILTIN_ATTENDANCE_TYPES.filter(t=>!t.startsWith('Return to work')).join(' · ');
- $('customLeaveTypes').innerHTML=customLeaveTypes(workspace).map((t,i)=>'<div class="change"><b>'+esc(t.name)+'</b><label>Default payment <select data-leave-payment="'+i+'">'+[['UNPAID','Unpaid'],['PENDING','Needs review'],['PAID','Paid']].map(([value,label])=>'<option value="'+value+'"'+(t.payment===value?' selected':'')+'>'+label+'</option>').join('')+'</select></label><button data-remove-leave-type="'+i+'">Remove type</button></div>').join('');
- $('customLeaveTypes').querySelectorAll('[data-leave-payment]').forEach(input=>input.onchange=()=>updateLeaveTypes(()=>saveLeaveType(workspace,{name:customLeaveTypes(workspace)[+input.dataset.leavePayment].name,payment:input.value}),'Leave type payment saved.'));
+ $('customLeaveTypes').innerHTML=customLeaveTypes(workspace).map((t,i)=>'<div class="change"><b>'+esc(t.name)+'</b><button data-remove-leave-type="'+i+'">Remove type</button></div>').join('');
  $('customLeaveTypes').querySelectorAll('[data-remove-leave-type]').forEach(button=>button.onclick=()=>updateLeaveTypes(()=>removeLeaveType(workspace,customLeaveTypes(workspace)[+button.dataset.removeLeaveType].name),'Leave type removed from new selections. Saved leave records kept.'));
 }
 async function updateLeaveTypes(change,message){try{await savesFinished();const next=change();await saveBlocking(next,'Updated leave types');workspace=next;render();$('leaveTypeStatus').textContent=message;$('leaveTypeStatus').className='muted';return true;}catch(e){renderLeaveTypes();$('leaveTypeStatus').textContent=e.message;$('leaveTypeStatus').className='error';return false;}}
-$('addLeaveType').onclick=async()=>{if(await updateLeaveTypes(()=>saveLeaveType(workspace,{name:$('newLeaveTypeName').value,payment:$('newLeaveTypePayment').value}),'Leave type saved. It is available in Attendance.'))$('newLeaveTypeName').value='';};
+$('addLeaveType').onclick=async()=>{if(await updateLeaveTypes(()=>saveLeaveType(workspace,{name:$('newLeaveTypeName').value}),'Leave type saved. It is available in Attendance.'))$('newLeaveTypeName').value='';};
 $('manageLeaveTypes').onclick=()=>{cancelAttendanceChange();showPage('coverage');$('leaveTypesPanel').open=true;$('newLeaveTypeName').focus();};

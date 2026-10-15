@@ -7,7 +7,7 @@ export function validateLeaveTypes(types){
 }
 export function saveLeaveType(workspace,{name,payment}){
  const next=structuredClone(workspace);next.leaveTypes=structuredClone(customLeaveTypes(workspace));const type={name:String(name||'').trim(),payment};
- const existing=next.leaveTypes.find(t=>normal(t.name)===normal(type.name));if(existing)existing.payment=payment;else next.leaveTypes.push(type);validateLeaveTypes(next.leaveTypes);return next;
+ const existing=next.leaveTypes.find(t=>normal(t.name)===normal(type.name));if(existing){if(payment!==undefined)existing.payment=payment;}else next.leaveTypes.push({...type,payment:payment??'UNPAID'});validateLeaveTypes(next.leaveTypes);return next;
 }
 export function removeLeaveType(workspace,name){const next=structuredClone(workspace);next.leaveTypes=customLeaveTypes(workspace).filter(t=>normal(t.name)!==normal(name));return next;}
 export function attendanceTypes(workspace){return [...BUILTIN_ATTENDANCE_TYPES,...customLeaveTypes(workspace).map(t=>t.name)];}
