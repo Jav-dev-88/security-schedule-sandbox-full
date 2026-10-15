@@ -196,3 +196,11 @@ The missing phone-access table is created automatically in the new test database
 The manager layout starts in Modern view. Use Classic view in the top toolbar to return to the regular layout; Modern view switches it back. This browser preference does not change saved schedules. Preview guard view opens a read-only guard preview, lets you choose a guard, and returns to the manager through Return to manager without changing accounts. Requests and account actions are hidden in the preview.
 
 Modern view now uses the dashboard structure: tabs below the page heading, one schedule toolbar, three primary hour cards, More hour details, and a side-by-side read-only guard preview on wide screens. Account tools are in the name menu at the top right. Create week opens the date controls. Classic view restores the original control positions. On narrow screens, guard preview opens over the page and Return to manager closes it.
+
+## Two management views and manual switches
+
+My guard view opens the signed-in Admin/Manager's own schedule, personal hours, vacation requests and switch requests. It prompts for their own schedule-name link if needed. Admin / Manager view returns without signing out. Preview guard view continues to show other people read-only.
+
+Manual switch is in the schedule toolbar and Requests. Select two assigned shifts, enter a reason, and Apply manual switch. It does not need guard-account creation or partner approval: the manager is directly authorizing the exchange. It checks saved revision, changed shifts, overlaps and pinned payroll transfers. The prior schedule is backed up; the actor and reason appear in audit and manual-switch history.
+
+Accounts now starts with Create guard account: choose the schedule name and phone, then Create account & generate code. The server creates the internal credentials automatically. The generated one-time code is shown privately with Show/Copy. Existing accounts use Phone / temporary code. Admin/Manager and password setup are under Advanced account options.
