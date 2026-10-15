@@ -1,0 +1,35 @@
+#schedulePrintRoot{position:absolute;left:-100000px;top:0;width:10.4in;background:white;color:#122239;font:8pt/1.15 Arial,sans-serif;pointer-events:none}
+#schedulePrintRoot .schedule-print-sheet{width:10.4in;margin:0;padding:0;display:flow-root}
+#schedulePrintRoot h1{font-size:13pt;text-align:center;line-height:1.15;margin:0 0 7pt}
+#schedulePrintRoot .schedule-print-grid{overflow:visible;margin:0;padding:0}
+#schedulePrintRoot .platoon-bar{display:block;border:1px solid #bdcbd9;border-radius:0;background:#e3ebf3;padding:3pt 5pt;margin:5pt 0 0;break-after:avoid}
+#schedulePrintRoot h3{font-size:9pt;line-height:1.15;margin:0}
+#schedulePrintRoot table{border-collapse:collapse;table-layout:fixed;width:100%;min-width:0;font-size:8pt;margin:0;break-inside:auto}
+#schedulePrintRoot th,#schedulePrintRoot td{width:auto;height:auto;min-height:0;border:1px solid #c4cfdb;padding:2pt 3pt;text-align:center;vertical-align:middle;line-height:1.15;font-size:inherit;overflow-wrap:anywhere}
+#schedulePrintRoot th:first-child,#schedulePrintRoot td:first-child{width:19%;text-align:left}
+#schedulePrintRoot th:nth-child(2),#schedulePrintRoot td:nth-child(2),#schedulePrintRoot th:nth-child(3),#schedulePrintRoot td:nth-child(3){width:5.5%}
+#schedulePrintRoot th:nth-child(4),#schedulePrintRoot td:nth-child(4){width:4.5%}
+#schedulePrintRoot th{background:#edf2f7;font-weight:bold}
+#schedulePrintRoot strong{display:block;font-weight:normal}
+#schedulePrintRoot small{font-size:6.5pt;line-height:1.1;color:inherit}
+#schedulePrintRoot .tag,#schedulePrintRoot .temp-tag,#schedulePrintRoot .coverage-tag,#schedulePrintRoot .holiday-tag{font-size:6pt;line-height:1.1;padding:1pt 2pt;margin:1pt 0 0;border-radius:2px}
+#schedulePrintRoot .tag{background:#4b7cb2;color:white}
+#schedulePrintRoot .blank{background:#eee!important;color:#727983}
+#schedulePrintRoot .open{background:#fff0d8!important;color:#94531b}
+#schedulePrintRoot .coverage-cell{background:#efe8ff!important}
+#schedulePrintRoot .bill-cell{background:#e5f0ff!important}
+#schedulePrintRoot .holiday-cell{background:#d8f1df!important}
+#schedulePrintRoot .schedule-print-cell{margin:0;padding:0;min-height:0}
+#schedulePrintRoot hr{margin:2pt 0;border:0;border-top:1px solid #c4cfdb}
+#schedulePrintRoot tr{break-inside:avoid}
+#schedulePrintRoot thead{display:table-header-group}
+#schedulePrintRoot tfoot{display:table-row-group}
+#schedulePrintRoot .daily-hours th{padding:3pt;background:#e5eef7}
+#schedulePrintRoot .today-label{display:none}
+@media print{
+ @page{size:letter landscape;margin:.3in .3in .7in}
+ html:has(body.print-schedule),body.print-schedule{margin:0!important;padding:0!important;min-height:0!important;height:auto!important;background:white!important;overflow:visible!important}
+ body.print-schedule>:not(#schedulePrintRoot){display:none!important}
+ body.print-schedule>#schedulePrintRoot{display:block!important;position:static!important;inset:auto!important;margin:0!important;padding:0!important;height:auto!important;max-height:none!important;overflow:visible!important;pointer-events:auto}
+ #schedulePrintRoot,#schedulePrintRoot *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
