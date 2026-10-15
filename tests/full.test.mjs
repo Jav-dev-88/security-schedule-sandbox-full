@@ -316,3 +316,18 @@ test('Vacation denial/cancellation keep dates; stale move cannot override a mana
   assert.equal((await call(env,'/api/vacation-moves/'+r.data.id,{cookie,method:'PATCH',data:{action:'APPROVE'}})).status,409,'A stale move cannot change a corrected vacation');
  }finally{env.DB.close();}
 });
+
+test('Vacation recheck endpoint uses saved schedule, is manager-only, and saves only changes',async()=>{
+ const env=envFactory();try{
+  const {cookie}=await setup(env);let {workspace:w,revision}=(await call(env,'/api/workspace',{cookie})).data;
+  w.staff=['Guard A','Guard B'];w.weeks[w.activeWeek].rows=[row('later-assignment','Guard A'),row('cover','Guard B')];const {datesForWeek}=await import('../public/workspace-model.js');const dates=datesForWeek(w.activeWeek);
+  w.vacations=[{id:'saved-vacation',guard:'Guard A',from:dates[0],to:dates[6],payment:'UNPAID',note:'Booked'}];
+  const saved=await call(env,'/api/workspace',{cookie,method:'PUT',data:{workspace:w,revision}});assert.equal(saved.status,200);
+  const result=await call(env,'/api/recheck-vacations',{cookie,method:'POST',data:{week:w.activeWeek}});assert.equal(result.status,200);assert.equal(result.data.openedShifts,1);assert.equal(result.data.revision,saved.data.revision+1);assert(ledger(result.data.workspace.weeks[w.activeWeek]).some(r=>r.guard==='Guard B'));assert(!ledger(result.data.workspace.weeks[w.activeWeek]).some(r=>r.guard==='Guard A'));
+  const again=await call(env,'/api/recheck-vacations',{cookie,method:'POST',data:{week:w.activeWeek}});assert.equal(again.status,200);assert.equal(again.data.changed,false);assert.equal(again.data.revision,result.data.revision);
+  assert.equal((await call(env,'/api/recheck-vacations',{cookie,method:'POST',data:{week:'missing'}})).status,400);
+  await call(env,'/api/users',{cookie,method:'POST',data:{username:'guard-recheck',name:'Guard A',guardName:'Guard A',role:'GUARD',password:'TempPassword123'}});
+  const login=await call(env,'/api/login',{method:'POST',data:{username:'guard-recheck',password:'TempPassword123'}});const changed=await call(env,'/api/password',{cookie:login.cookie,method:'POST',data:{currentPassword:'TempPassword123',password:'NewGuardPassword123'}});
+  assert.equal((await call(env,'/api/recheck-vacations',{cookie:changed.cookie,method:'POST',data:{week:w.activeWeek}})).status,403);
+ }finally{env.DB.close();}
+});

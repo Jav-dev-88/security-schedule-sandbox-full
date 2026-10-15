@@ -1,3 +1,4 @@
+import {recheckVacationAssignments} from '../public/workspace-model.js';
 import {vacationMoveApi} from './vacation-move-api.js';
 import {switchShiftOptions} from '../public/future-switches.js';
 import {submissionsApi} from './submissions.js';
@@ -38,6 +39,7 @@ async function api(request,env,url){const db=env.DB;if(!db)fail(503,'DB binding 
  const vacationMove=await vacationMoveApi(request,user,db,url,{body,json,fail,manager,canManage,readWorkspace,writeWorkspace,audit,now});if(vacationMove)return vacationMove;
  const submission=await submissionsApi(request,user,db,url,{body,json,fail,manager,canManage,readWorkspace,writeWorkspace,audit,now});if(submission)return submission;
  if(path==='/api/workspace'&&method==='GET'){manager(user);return json(await readWorkspace(db));}
+ if(path==='/api/recheck-vacations'&&method==='POST'){manager(user);const b=await body(request),{workspace:w,revision}=await readWorkspace(db);let result;try{result=recheckVacationAssignments(w,b.week);}catch(e){fail(400,e.message);}const updated=result.changed?await writeWorkspace(db,user,result.workspace,revision,'Rechecked vacations for W-E '+b.week):revision;return json({...result,revision:updated});}
  if(path==='/api/workspace'&&method==='PUT'){manager(user);const b=await body(request);return json({revision:await writeWorkspace(db,user,b.workspace,b.revision,String(b.reason||'Schedule edited'))});}
  if(path==='/api/guard-preview'&&method==='GET'){manager(user);const name=String(url.searchParams.get('guard')||'').trim();if(!name||name.length>80)fail(400,'Choose a guard to preview.');return json(guardView((await readWorkspace(db)).workspace,name));}
  if(path==='/api/guard'&&method==='GET'){if(!user.guard_name)fail(400,'Link your account to a schedule name in Accounts first.');return json(guardView((await readWorkspace(db)).workspace,user.guard_name));}
