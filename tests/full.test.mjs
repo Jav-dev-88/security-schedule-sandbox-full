@@ -331,3 +331,17 @@ test('Vacation recheck endpoint uses saved schedule, is manager-only, and saves 
   assert.equal((await call(env,'/api/recheck-vacations',{cookie:changed.cookie,method:'POST',data:{week:w.activeWeek}})).status,403);
  }finally{env.DB.close();}
 });
+
+test('Simple guard temporary passwords require first-login change, reset sessions, and preserve Admin/Manager requirements',async()=>{
+ const env=envFactory();try{
+  const admin=await setup(env),cookie=admin.cookie;let {workspace:w,revision}=(await call(env,'/api/workspace',{cookie})).data;w.staff=['Bart','Rasheed'];await call(env,'/api/workspace',{cookie,method:'PUT',data:{workspace:w,revision}});
+  const created=await call(env,'/api/users',{cookie,method:'POST',data:{role:'GUARD',name:'Bart',guardName:'Bart',username:'bart',password:'Bart1'}});assert.equal(created.status,201);
+  const login=await call(env,'/api/login',{method:'POST',data:{username:'bart',password:'Bart1'}});assert.equal(login.status,200);assert.equal(login.data.user.mustChange,true);assert.equal((await call(env,'/api/guard',{cookie:login.cookie})).status,403);
+  const changed=await call(env,'/api/password',{cookie:login.cookie,method:'POST',data:{currentPassword:'Bart1',password:'MyOwnPassword22'}});assert.equal(changed.status,200);assert.equal((await call(env,'/api/guard',{cookie:changed.cookie})).status,200);assert.equal((await call(env,'/api/login',{method:'POST',data:{username:'bart',password:'Bart1'}})).status,401);
+  assert.equal((await call(env,'/api/users/'+created.data.id,{cookie,method:'PATCH',data:{password:'Bart2'}})).status,200);assert.equal((await call(env,'/api/guard',{cookie:changed.cookie})).status,401);const reset=await call(env,'/api/login',{method:'POST',data:{username:'bart',password:'Bart2'}});assert(reset.data.user.mustChange);
+  assert.equal((await call(env,'/api/users/'+created.data.id,{cookie,method:'PATCH',data:{password:'bart'}})).status,400);
+  const phone=await call(env,'/api/users',{cookie,method:'POST',data:{role:'GUARD',name:'Rasheed',guardName:'Rasheed',username:'rasheed',phone:'2025550161',password:'Rasheed1'}});assert.equal(phone.status,201);assert.equal((await call(env,'/api/login',{method:'POST',data:{username:'rasheed',password:'Rasheed1'}})).data.user.mustChange,true);
+  const manager=await call(env,'/api/users',{cookie,method:'POST',data:{role:'MANAGER',name:'Manager',username:'manager-short',password:'Name1'}});assert.notEqual(manager.status,201);
+  assert.equal((await call(env,'/api/users/'+created.data.id+'/access',{cookie,method:'POST',data:{guardName:'Bart'}})).status,200);
+ }finally{env.DB.close();}
+});
