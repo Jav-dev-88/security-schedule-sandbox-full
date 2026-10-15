@@ -70,3 +70,19 @@ export function editVacation(workspace,id,fields){
  }
  Object.assign(old,v);return next;
 }
+
+// Calendar dates use the building's timezone, independent of the viewer's device.
+export function scheduleToday(now=new Date()){
+ const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
+ const part=type=>parts.find(p=>p.type===type).value;
+ return part('year')+'-'+part('month')+'-'+part('day');
+}
+export function currentScheduleWeek(now=new Date()){
+ const day=new Date(scheduleToday(now)+'T12:00:00Z');
+ day.setUTCDate(day.getUTCDate()+(7-day.getUTCDay())%7);
+ return day.toISOString().slice(0,10);
+}
+export function openingScheduleWeek(weeks,fallback,now=new Date()){
+ const current=currentScheduleWeek(now);
+ return weeks.includes(current)?current:weeks.includes(fallback)?fallback:weeks.slice().sort().at(-1)||'';
+}
