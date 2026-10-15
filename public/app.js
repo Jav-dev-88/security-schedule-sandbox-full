@@ -197,5 +197,7 @@ function renderWeeklyLeave(){
  const groups=new Map(),add=(guard,type,day)=>{if(!guard||day<0||day>6)return;const k=guard+'|'+type;if(!groups.has(k))groups.set(k,{guard,type,days:new Set()});groups.get(k).days.add(day);};
  for(const e of state.events||[])add(e.guard,e.type,e.day);
  for(const v of workspace.vacations||[])for(let day=0;day<7;day++)if(DATES[day]>=v.from&&DATES[day]<=v.to)add(v.guard,'Vacation',day);
- $('weeklyLeaveList').innerHTML=groups.size?[...groups.values()].sort((a,b)=>a.guard.localeCompare(b.guard)||a.type.localeCompare(b.type)).map(g=>'<div class="change"><span><b>'+esc(g.guard)+'</b> · '+esc(g.type)+'<br>'+[...g.days].sort((a,b)=>a-b).map(day=>DAYS[day]+' '+displayDate(DATES[day])).join(' · ')+'</span></div>').join(''):'<p class="muted">No leave recorded for this week.</p>';
+ $('weeklyLeaveList').innerHTML=groups.size?[...groups.values()].sort((a,b)=>a.guard.localeCompare(b.guard)||a.type.localeCompare(b.type)).map(g=>'<div class="change"><span><b>'+esc(g.guard)+'</b> · '+esc(g.type)+'<br>'+leaveDateRanges(g.days)+'</span></div>').join(''):'<p class="muted">No leave recorded for this week.</p>';
 }
+
+function leaveDateRanges(days){const sorted=[...days].sort((a,b)=>a-b),ranges=[];for(const day of sorted){const last=ranges.at(-1);if(last&&day===last[1]+1)last[1]=day;else ranges.push([day,day]);}return ranges.map(([from,to])=>displayDate(DATES[from])+(from===to?'':' through '+displayDate(DATES[to]))).join(' · ');}
