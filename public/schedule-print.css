@@ -33,3 +33,8 @@
  body.print-schedule>#schedulePrintRoot{display:block!important;position:static!important;inset:auto!important;margin:0!important;padding:0!important;height:auto!important;max-height:none!important;overflow:visible!important;pointer-events:auto}
  #schedulePrintRoot,#schedulePrintRoot *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+
+#schedulePrintRoot .federal-holiday-column{background:#fff1cc!important;color:#47320b}
+#schedulePrintRoot th.federal-holiday-column{background:#f5dc98!important}
+#schedulePrintRoot .federal-holiday-column.holiday-cell{background:#d8f1df!important}
+#schedulePrintRoot .federal-holiday-label{display:block;font-size:6pt;line-height:1.1;margin-top:2pt}
