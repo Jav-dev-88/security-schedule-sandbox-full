@@ -1,7 +1,14 @@
 import {ledger,segmentKey,assign,linkedParts} from './editor-model.js';
 export function applyPlannedSwitch(w,requester,partner,payload){const next=structuredClone(w),state=next.weeks[payload.week];if(!state)throw Error('Week no longer exists.');const list=ledger(state),a=list.find(r=>segmentKey(r)===payload.fromKey&&r.guard===requester.guard_name),b=list.find(r=>segmentKey(r)===payload.toKey&&r.guard===partner.guard_name);if(!a||!b)throw Error('The requested shifts have changed. Submit a new switch request.');if(a.paidHoliday||b.paidHoliday)throw Error('Off-duty holiday shifts cannot be switched.');if(requester.guard_name===partner.guard_name)throw Error('Choose a different scheduled person.');if(a.role!=='regular'||b.role!=='regular')throw Error('Only original unsplit shifts can be switched.');let result=assign(state,a,{guard:'',status:'blank',billable:a.billable}).state;result=assign(result,b,{guard:'',status:'blank',billable:b.billable}).state;for(const [target,guard] of [[a,partner.guard_name],[b,requester.guard_name]]){const parts=linkedParts(state,target),start=Math.min(target.start,...parts.map(r=>r.start))+target.day*1440,end=Math.max(target.end,...parts.map(r=>r.end))+target.day*1440;if(ledger(result).some(r=>r.guard===guard&&!r.paidHoliday&&r.day*1440+r.start<end&&r.day*1440+r.end>start))throw Error(guard+' has another shift that overlaps this switch. Adjust that shift first.');}result=assign(result,a,{guard:partner.guard_name,status:'staff',billable:a.billable}).state;result=assign(result,b,{guard:requester.guard_name,status:'staff',billable:b.billable}).state;next.weeks[payload.week]=result;return next;}
 
-export function masterShiftOptions(master,guard){return ledger(master).filter(r=>r.guard===guard&&r.role==='regular'&&!r.paidHoliday).map(r=>({key:segmentKey(r),day:r.day,post:r.post,start:r.start,end:r.end}));}
+export function switchShiftOptions(state,guard=null){
+ const rows=ledger(state).filter(r=>r.guard&&(!guard||r.guard===guard)&&r.role==='regular'&&!r.paidHoliday),seen=new Set(),result=[];
+ for(const r of rows){if(seen.has(segmentKey(r)))continue;const parts=linkedParts(state,r).sort((a,b)=>a.start-b.start),combined=parts.length===2&&parts[0].start===510&&parts[0].end===900&&parts[1].start===900&&parts[1].end===990&&parts.every(p=>p.role==='regular'&&!p.paidHoliday&&state.rows.some(row=>row.id===p.source&&row.start===p.start&&row.end===p.end));
+ const shifts=combined?parts:[r],first=shifts[0];for(const part of shifts)seen.add(segmentKey(part));result.push({key:segmentKey(first),day:first.day,guard:first.guard,post:[...new Set(shifts.map(p=>p.post))].join(' + '),start:first.start,end:shifts.at(-1).end,linked:combined,partKeys:shifts.map(segmentKey)});
+ }
+ return result;
+}
+export function masterShiftOptions(master,guard){return switchShiftOptions(master,guard);}
 export function shiftSignature(state,key,guard){
  const target=ledger(state).find(r=>segmentKey(r)===key&&r.guard===guard&&r.role==='regular'&&!r.paidHoliday);
  if(!target)throw Error('The requested shift changed. Submit a new request.');

@@ -253,3 +253,66 @@ test('Management personal guard view submits own requests; manual switch needs m
  }finally{env.DB.close();}});
 
 test('One login accepts username/password and formatted phone/temporary code without a role selector',async()=>{const env=envFactory();try{const admin=await setup(env),cookie=admin.cookie;assert.equal((await call(env,'/api/login',{method:'POST',data:{username:'admin',password:env.ADMIN_PASSWORD}})).status,200);const {workspace:w,revision}=(await call(env,'/api/workspace',{cookie})).data;w.staff=['Guard A'];await call(env,'/api/workspace',{cookie,method:'PUT',data:{workspace:w,revision}});const created=await call(env,'/api/users',{cookie,method:'POST',data:{role:'GUARD',guardName:'Guard A',phone:'2025550146',generate:true}});const login=await call(env,'/api/login',{method:'POST',data:{username:'(202) 555-0146',password:created.data.code}});assert.equal(login.status,200);assert.equal(login.data.user.role,'GUARD');assert.equal((await call(env,'/api/login',{method:'POST',data:{username:'+12025550146',password:created.data.code}})).status,401);assert.equal((await call(env,'/api/workspace',{cookie:login.cookie})).status,403);}finally{env.DB.close();}});
+
+async function vacationMoveFixture(){
+ const env=envFactory(),admin=await setup(env),cookie=admin.cookie,{workspace:w,revision}=(await call(env,'/api/workspace',{cookie})).data;
+ const {addVacation}=await import('../public/workspace-model.js');const end=w.activeWeek,dates=(await import('../public/workspace-model.js')).datesForWeek(end),next=new Date(end+'T12:00:00Z');next.setUTCDate(next.getUTCDate()+7);const newWeek=next.toISOString().slice(0,10);
+ w.staff=['Guard A','Guard B'];w.master.rows=[row('linked-a','Guard A',2,510,900),row('linked-b','Guard A',3,900,990),{...row('other','Guard B'),guards:['','Guard B','','','','','']}];w.weeks[end]=structuredClone(w.master);let changed=addVacation(w,{guard:'Guard A',from:dates[0],to:dates[6],payment:'UNPAID',note:'Original vacation'});changed=generateWeek(changed,newWeek);changed.masterLocked=true;
+ assert.equal((await call(env,'/api/workspace',{cookie,method:'PUT',data:{workspace:changed,revision}})).status,200);
+ const guard=await call(env,'/api/users',{cookie,method:'POST',data:{role:'GUARD',name:'Guard A',guardName:'Guard A',phone:'2025550144',generate:true}});assert.equal(guard.status,201);const login=await call(env,'/api/phone-login',{method:'POST',data:{phone:'2025550144',code:guard.data.code}});assert.equal(login.status,200);
+ return {env,cookie,guardCookie:login.cookie,end,newWeek,newFrom:(await import('../public/workspace-model.js')).datesForWeek(newWeek)[0]};
+}
+
+test('Vacation move lists saved leave, needs manager approval, restores both linked parts and opens the new dates',async()=>{
+ const f=await vacationMoveFixture(),{env,cookie,guardCookie,end,newWeek,newFrom}=f;try{
+  const choices=(await call(env,'/api/my-vacations',{cookie:guardCookie})).data.vacations;assert.equal(choices.length,1);assert.equal((await call(env,'/api/my-vacations?guard=Guard%20B',{cookie:guardCookie})).status,403);
+  const v=choices[0],before=(await call(env,'/api/workspace',{cookie})).data.workspace,master=JSON.stringify(before.master);
+  const req=await call(env,'/api/vacation-moves',{cookie:guardCookie,method:'POST',data:{vacationId:v.id,signature:v.signature,newFrom,note:'Please move my vacation to next week'}});assert.equal(req.status,201);
+  assert.equal(JSON.stringify((await call(env,'/api/workspace',{cookie})).data.workspace),JSON.stringify(before),'Submitting leaves vacation dates and shifts untouched');
+  assert.equal((await call(env,'/api/vacation-moves/'+req.data.id,{cookie:guardCookie,method:'PATCH',data:{action:'APPROVE'}})).status,403);
+  assert.equal((await call(env,'/api/vacation-moves/'+req.data.id,{cookie,method:'PATCH',data:{action:'APPROVE'}})).status,200);
+  const after=(await call(env,'/api/workspace',{cookie})).data.workspace;assert.equal(after.weeks[end].rows[0].guards[0],'Guard A');assert.equal(after.weeks[end].rows[1].guards[0],'Guard A');assert.equal(after.weeks[newWeek].rows[0].guards[0],'');assert.equal(after.weeks[newWeek].rows[1].guards[0],'');assert.equal(after.vacations[0].from,newFrom);assert.equal(JSON.stringify(after.master),master);
+  assert.equal((await call(env,'/api/vacation-moves/'+req.data.id,{cookie,method:'PATCH',data:{action:'APPROVE'}})).status,409);
+  assert.equal((await call(env,'/api/vacation-moves',{cookie:guardCookie})).data.moves[0].status,'APPROVED');
+ }finally{env.DB.close();}
+});
+
+test('Manager can move vacations manually; coverage conflicts prevent partial restoration or replacing the covering guard',async()=>{
+ const f=await vacationMoveFixture(),{env,cookie,guardCookie,end,newFrom}=f;try{
+  let loaded=(await call(env,'/api/workspace',{cookie})).data;let v=(await call(env,'/api/my-vacations',{cookie:guardCookie})).data.vacations[0];
+  const payload={guard:'Guard A',vacationId:v.id,signature:v.signature,newFrom,note:'Manager correction',revision:loaded.revision};
+  assert.equal((await call(env,'/api/vacation-moves/manual',{cookie:guardCookie,method:'POST',data:payload})).status,403);
+  assert.equal((await call(env,'/api/vacation-moves/manual',{cookie,method:'POST',data:payload})).status,200);
+  assert.equal((await call(env,'/api/vacation-moves/manual',{cookie,method:'POST',data:payload})).status,409);
+  const {moveVacation,vacationChoices}=await import('../public/vacation-moves.js');loaded=(await call(env,'/api/workspace',{cookie})).data;
+  let w=generateWeek(loaded.workspace,end,{overwrite:true});v=vacationChoices(w,'Guard A')[0];
+  // The new vacation is still off; cover its first linked part before moving it again.
+  const week=Object.keys(w.weeks).find(end=>w.vacations[0].from<end&&w.vacations[0].to===end);w.weeks[week].rows[0].guards[0]='Guard B';w.weeks[week].rows[0].open[0]=false;
+  const snapshot=JSON.stringify(w),backFrom=(await import('../public/workspace-model.js')).datesForWeek(end)[0];assert.throws(()=>moveVacation(w,'Guard A',v.id,backFrom,v.signature,'Move back'),/coverage|changed/);assert.equal(JSON.stringify(w),snapshot);
+ }finally{env.DB.close();}
+});
+
+test('Older weekly vacation entries are listed and can be adopted into a moved saved vacation',async()=>{
+ const {vacationChoices,moveVacation}=await import('../public/vacation-moves.js'),{datesForWeek}=await import('../public/workspace-model.js');let w=newWorkspace();w.master.rows=[row('legacy','Guard A')];w.weeks[w.activeWeek]=structuredClone(w.master);const target=ledger(w.weeks[w.activeWeek])[0];w.weeks[w.activeWeek]=attendanceEvent(w.weeks[w.activeWeek],target,{type:'Vacation',payment:'UNPAID',note:'Older approved vacation'});const choices=vacationChoices(w,'Guard A');assert.equal(choices.length,1);assert.equal(choices[0].source,'recorded');const nextDate=new Date(datesForWeek(w.activeWeek)[0]+'T12:00:00Z');nextDate.setUTCDate(nextDate.getUTCDate()+14);const from=nextDate.toISOString().slice(0,10);const moved=moveVacation(w,'Guard A',choices[0].id,from,choices[0].signature,'Move older vacation');assert.equal(moved.vacations[0].from,from);assert.equal(moved.weeks[w.activeWeek].rows[0].guards[0],'Guard A');assert.equal(moved.weeks[w.activeWeek].events.length,0);assert.equal(vacationChoices(moved,'Guard A').length,1);
+});
+
+test('08:30–15:00 and 15:00–16:30 appear as one eight-hour choice and both parts switch together',async()=>{
+ const {switchShiftOptions,masterShiftOptions}=await import('../public/future-switches.js');const w=newWorkspace(),end=w.activeWeek;w.master.rows=[row('am','Guard A',2,510,900),row('pm','Guard A',3,900,990),{...row('b','Guard B'),guards:['','Guard B','','','','','']}];w.weeks[end]=structuredClone(w.master);
+ const own=switchShiftOptions(w.weeks[end],'Guard A');assert.equal(own.length,1);assert.equal(own[0].start,510);assert.equal(own[0].end,990);assert.equal((own[0].end-own[0].start)/60,8);assert(own[0].linked);assert.equal(masterShiftOptions(w.master,'Guard A').length,1);const view=guardView(w,'Guard A').weeks[0];assert.equal(view.shifts.length,1);assert.equal(view.shifts[0].end,990);assert.equal(view.hours.worked,8);assert.equal(view.schedule.length,3,'The weekly platoon rows stay separate');
+ const other=switchShiftOptions(w.weeks[end],'Guard B')[0],next=applySwitch(w,{guard_name:'Guard A'},{guard_name:'Guard B'},{week:end,fromKey:own[0].key,toKey:other.key});assert.equal(next.weeks[end].rows[0].guards[0],'Guard B');assert.equal(next.weeks[end].rows[1].guards[0],'Guard B');assert.equal(next.weeks[end].rows[2].guards[1],'Guard A');assert.equal(w.master.rows[0].guards[0],'Guard A');
+ const split=structuredClone(w.master);split.rows[1].guards[0]='Guard C';assert.equal(switchShiftOptions(split,'Guard A')[0].end,900,'Different guards are not combined');
+});
+
+test('Vacation denial/cancellation keep dates; stale move cannot override a manager correction; linked options are combined in APIs',async()=>{
+ const f=await vacationMoveFixture(),{env,cookie,guardCookie,newFrom,newWeek}=f;try{
+  const v=(await call(env,'/api/my-vacations',{cookie:guardCookie})).data.vacations[0],payload={vacationId:v.id,signature:v.signature,newFrom,note:'Move my vacation'},original=JSON.stringify((await call(env,'/api/workspace',{cookie})).data.workspace);
+  const request=()=>call(env,'/api/vacation-moves',{cookie:guardCookie,method:'POST',data:payload});let r=await request();assert.equal(r.status,201);
+  assert.equal((await call(env,'/api/vacation-moves/'+r.data.id,{cookie,method:'PATCH',data:{action:'DENY'}})).status,200);assert.equal(JSON.stringify((await call(env,'/api/workspace',{cookie})).data.workspace),original);
+  r=await request();assert.equal(r.status,201);assert.equal((await call(env,'/api/vacation-moves/'+r.data.id,{cookie:guardCookie,method:'PATCH',data:{action:'CANCEL'}})).status,200);assert.equal(JSON.stringify((await call(env,'/api/workspace',{cookie})).data.workspace),original);
+  const users=(await call(env,'/api/users',{cookie})).data.users,guard=users.find(u=>u.guardName==='Guard A');const options=(await call(env,'/api/switch-options?week='+newWeek+'&partner='+guard.id,{cookie})).data.shifts;assert.equal(options.length,1);assert.equal(options[0].start,510);assert.equal(options[0].end,990);
+  const manual=(await call(env,'/api/manual-switch/options?week='+newWeek,{cookie})).data.shifts;assert.equal(manual.filter(s=>s.guard==='Guard A').length,1);
+  const view=(await call(env,'/api/guard',{cookie:guardCookie})).data.weeks.find(w=>w.end===newWeek);assert.equal(view.shifts.length,1);assert.equal(view.shifts[0].end,990);
+  r=await request();assert.equal(r.status,201);const loaded=(await call(env,'/api/workspace',{cookie})).data;assert.equal((await call(env,'/api/vacation-moves/manual',{cookie,method:'POST',data:{...payload,guard:'Guard A',revision:loaded.revision}})).status,200);
+  assert.equal((await call(env,'/api/vacation-moves/'+r.data.id,{cookie,method:'PATCH',data:{action:'APPROVE'}})).status,409,'A stale move cannot change a corrected vacation');
+ }finally{env.DB.close();}
+});
