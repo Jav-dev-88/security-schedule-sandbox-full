@@ -190,3 +190,7 @@ For an existing guard account: Accounts → Phone / temporary code → select th
 For switches with an Admin or Manager, link their account to their schedule name through Accounts → Link schedule name. They can accept as a switch partner in Requests; final approval is a separate action. All switches require acceptance plus Admin/Manager approval. Changed or unavailable shifts must be reviewed again. The schedule and payroll update only after final approval.
 
 The missing phone-access table is created automatically in the new test database. Migration 0002 is included for explicit migration workflows.
+
+## Modern / Classic manager view
+
+The manager layout starts in Modern view. Use Classic view in the top toolbar to return to the regular layout; Modern view switches it back. This browser preference does not change saved schedules. Preview guard view opens a read-only guard preview, lets you choose a guard, and returns to the manager through Return to manager without changing accounts. Requests and account actions are hidden in the preview.
