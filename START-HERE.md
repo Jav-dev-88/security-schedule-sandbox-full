@@ -194,3 +194,5 @@ The missing phone-access table is created automatically in the new test database
 ## Modern / Classic manager view
 
 The manager layout starts in Modern view. Use Classic view in the top toolbar to return to the regular layout; Modern view switches it back. This browser preference does not change saved schedules. Preview guard view opens a read-only guard preview, lets you choose a guard, and returns to the manager through Return to manager without changing accounts. Requests and account actions are hidden in the preview.
+
+Modern view now uses the dashboard structure: tabs below the page heading, one schedule toolbar, three primary hour cards, More hour details, and a side-by-side read-only guard preview on wide screens. Account tools are in the name menu at the top right. Create week opens the date controls. Classic view restores the original control positions. On narrow screens, guard preview opens over the page and Return to manager closes it.
