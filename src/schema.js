@@ -1,5 +1,6 @@
 // Create only missing tables in the database bound to this new Worker.
 const statements=[
+  "CREATE TABLE IF NOT EXISTS phone_access (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, phone TEXT NOT NULL UNIQUE, code_hash TEXT NOT NULL DEFAULT '', expires_at INTEGER NOT NULL DEFAULT 0)",
   "CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE, name TEXT NOT NULL, guard_name TEXT NOT NULL DEFAULT '', role TEXT NOT NULL CHECK(role IN ('ADMIN','MANAGER','GUARD')), password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, disabled INTEGER NOT NULL DEFAULT 0, must_change INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)",
   "CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL)",
   "CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires_at)",

@@ -44,7 +44,7 @@ In Cloudflare, open **Storage & Databases → D1** and create a database named:
 
 Copy its Database ID. In your NEW GitHub repository, edit `wrangler.jsonc` and replace `REPLACE_WITH_NEW_TEST_DATABASE_ID` with that ID. Commit the change. Do not use the old app's database ID.
 
-The new app automatically creates its database tables when you first open it. You do not need to paste SQL in the D1 Console. Existing tables and records are preserved. The SQL migration file remains available for local development and manual administration.
+Open the new D1 database's Console. Run the SQL from `migrations/0001_initial.sql`. If the console only allows one statement at a time, run each CREATE TABLE / CREATE INDEX statement separately. The migration is safe to rerun because it uses IF NOT EXISTS.
 
 ## 3. Create the NEW Cloudflare Worker
 
@@ -64,20 +64,26 @@ Choose Workers, not Pages. The database binding is declared in `wrangler.jsonc` 
 
 If Cloudflare cannot see the new GitHub repository, update the Cloudflare GitHub application's repository access to include it.
 
-## 4. Set your first Admin password
+## 4. Add the setup secret
 
-In the NEW Worker's Settings → Variables and Secrets, add one Secret:
+In the NEW Worker's **Settings → Variables and Secrets**, add:
 
-- Name: `ADMIN_PASSWORD`
-- Value: the password you chose, at least 10 characters.
+- Name: `SETUP_TOKEN`
+- Type: Secret
+- Value: a long random string you choose, at least 20 characters.
 
-Keep that password out of GitHub. There is no SETUP_TOKEN. The first Admin username defaults to `jrasheed`. Optional non-secret variables `ADMIN_USERNAME` and `ADMIN_NAME` can override the initial username and display name.
+Do not put this value in GitHub. Redeploy if Cloudflare requires it after adding the secret.
 
-## 5. Sign in
+## 5. Open the NEW app
 
-Open the new app and sign in as **jrasheed** using that password. A matching first sign-in creates the Admin and initial workspace automatically. An incorrect password cannot create an account.
+Open the new workers.dev URL shown by Cloudflare. The first screen asks for:
 
-After the Admin is created, all sign-ins use the database password hash. You can remove `ADMIN_PASSWORD` from Worker secrets afterward. No preset password is included in the repository.
+- Setup token: the secret you chose.
+- Your name.
+- Admin username.
+- Admin password: at least 10 characters.
+
+Create the first Admin. There is no default password. After first Admin creation, the setup endpoint is disabled. You can remove `SETUP_TOKEN` from Worker secrets afterward.
 
 ## 6. Build your Master
 
@@ -85,37 +91,13 @@ The full app starts empty; it does not import sample schedules or the old app's 
 
 1. Open **Staff** and add the guard names.
 2. Open **Master Template**.
-3. Use **+ Quick Add Row** in a platoon to create a blank row immediately. Post is blank; hours default to 23:00–07:00, 07:00–15:00, or 15:00–23:00 for that platoon. Fill the guard cells. **Add with details** remains available when you want custom post/times.
-4. Fill the day cells. Known guard names save automatically when fully typed or when you click outside. A suggested completion stays selected while you keep typing; click outside or press Enter to accept it. You do not need a Save button. A new name typed in a cell is saved as a temporary guard when you click outside or press Enter.
+3. Use **+ Add Row** in each platoon. Enter the post, start/end times, day, guard, and billing status.
+4. Fill the other day cells. Type a name, then press Enter or Save. With Auto-save on, clicking outside also saves.
 5. Lock the Master.
 6. Choose a Sunday week ending and click **Create Weekly from Master**.
 7. Open **Accounts** and create Manager/Guard logins. For a Guard, select the exact schedule name. Give them a temporary password; the app requires a password change on first login.
 
 Changes are shared between devices after saving. Use Refresh to load another manager's updates. There is no continuous live push refresh.
-
-## Full-shift attendance coverage
-
-When a guard is out for an entire shift, Attendance replaces that guard in the existing day cell with the covering guard. The original absence remains in Leave & Coverage. If coverage is pending, the same cell shows Blank shift needing coverage. Filling that cell updates the coverage display. A covering guard must be available during the requested hours.
-
-Left early and came late still use a separate row for the uncovered portion because its times differ.
-
-For older duplicate full-shift rows, open Leave & Coverage and use **Repair older coverage rows** if offered. The repair recognizes only unambiguous legacy attendance rows, saves their pictures, and uses the normal database version backup. Rows used on other days or containing further edits are not automatically merged. Undo or a backup can reverse a repair.
-
-## Temporary account passwords
-
-Open **Accounts**, enter the account details, and click **Generate temporary password**. Use **Show password** or **Copy password**, then create the account. Passwords are generated privately in your browser using secure randomness. The generator does not create an account until you submit the form. The account must change its temporary password at first sign-in.
-
-For an existing account, click **Reset password**. A temporary password is generated in the reset form. Copy it and submit **Reset this account’s password** to apply it. Opening the form alone does not reset the account. Provide credentials privately; the app does not send them automatically.
-
-## Direct post and time editing
-
-Click a post, Time In, or Time Out directly in the schedule. Enter a post name or military time such as 0700, then click outside or press Enter. The row saves automatically and hours recalculate. Row times apply to all seven day columns. Overnight end times are handled automatically. Invalid times and new overlaps are rejected. Rows with linked split or attendance records are protected from edits that would discard those records.
-
-A Schedule Review panel identifies open coverage, missing posts on staffed rows, and overlapping shifts. It does not invent missing shifts or automatically move guards.
-
-## Temporary guards
-
-Use **Generate temp guard** on the schedule or **Generate temp name** in Staff to create Temp Guard 1, Temp Guard 2, and so on without reusing existing numbers. Generated names are ready to assign; no shifts or login accounts are created automatically. You can also use **Staff → Add temporary guard**, or type a new name directly into a schedule cell and click outside. Temporary guards are marked **TEMP** and can be used in schedules without adding them to permanent staff. Names are shared between devices after saving. The temporary label does not expire automatically or create a login. Use **Make permanent** in Staff if a temporary guard joins the regular team.
 
 ## 7. Optional: email schedule PDFs
 
@@ -160,7 +142,7 @@ npm test
 npm run build
 ```
 
-To run locally, copy `.dev.vars.example` to `.dev.vars`, set your local ADMIN_PASSWORD, then run:
+To run locally, copy `.dev.vars.example` to `.dev.vars`, replace the setup token, then run:
 
 ```sh
 npm run db:local
@@ -181,11 +163,11 @@ npm run deploy
 
 - **Missing DB binding:** check the database entry and ID in `wrangler.jsonc`.
 - **Server error / no users table:** apply `migrations/0001_initial.sql` to the new D1 database.
-- **First Admin password missing:** add ADMIN_PASSWORD as a Worker Secret, then sign in as jrasheed.
+- **Setup secret missing:** add SETUP_TOKEN as a Worker Secret, not an ordinary code constant.
 - **Temporary password cannot load schedules:** change the password when prompted.
 - **Master is locked:** unlock before editing, restoring a different Master, or deleting a Master row.
 - **Save conflict:** download the unsaved copy, reload latest, and reapply the affected edits.
-- **Name will not save:** finish typing and click outside; new names are saved as temporary guards. A guard cannot work overlapping assignments. Read the error beside the cell.
+- **Name will not save:** add it to Staff first; a guard cannot work overlapping assignments. Read the error beside the cell.
 - **Email not configured:** follow optional email setup; no email provider is enabled by default.
 
 Cloudflare references:
@@ -198,3 +180,13 @@ Cloudflare references:
 Source syntax/import checks and automated integration tests passed for authentication, role restrictions, sessions, optimistic-save conflicts, backups, Master lock, generated-week independence, row order, saved-image deletion, partial attendance, payroll overlap removal, Sunday overnight hours, test exclusions, guard privacy, vacation approval, and both-guards-plus-manager switch approval. PDF structure, rendered pages, and unconfigured email handling were tested.
 
 The code has not been deployed to your Cloudflare account. Real Cloudflare deployment, browser layout, cross-device checks, and actual email delivery still need to be checked on the new test URL before using it for real schedules.
+
+## Guard portal and phone codes
+
+Guards can view the full saved weekly schedule, highlight their shifts, switch to My shifts, print the schedule, and see only their own payroll hours. Billing settings and other guards' attendance notes are not shared.
+
+For an existing guard account: Accounts → Phone / temporary code → select the schedule name, enter their phone number, and Generate temporary code. Show/copy the code and give it directly to the guard. Guard sign-in uses that phone number and code. Codes expire after 15 minutes, work once, and are replaced when a new one is generated. They are hashed in D1 and are never written to the audit log. No SMS service is configured or required. Existing password sign-in remains available.
+
+For switches with an Admin or Manager, link their account to their schedule name through Accounts → Link schedule name. They can accept as a switch partner in Requests; final approval is a separate action. All switches require acceptance plus Admin/Manager approval. Changed or unavailable shifts must be reviewed again. The schedule and payroll update only after final approval.
+
+The missing phone-access table is created automatically in the new test database. Migration 0002 is included for explicit migration workflows.
