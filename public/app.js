@@ -1,6 +1,6 @@
 import {downloadScheduleExcel} from './schedule-excel.js';
 import {changedWeeklyShifts,transfersForWeek} from './weekly-changes.js';
-import {weeklyVacations} from './weekly-vacations.js';
+import {weeklyVacations,upcomingVacations} from './weekly-vacations.js';
 import {guardHoursTotals} from './weekly-hours.js';
 import {holidayCreditBalances,useHolidayCredit,cancelHolidayCredit,applyHolidayCreditWeek} from './holiday-credits.js';
 import {BUILTIN_ATTENDANCE_TYPES,leaveTypeLabel,customLeaveTypes,attendanceTypes,defaultLeavePayment,saveLeaveType,removeLeaveType} from './leave-types.js';
@@ -215,11 +215,11 @@ async function saveSundayContinuation(id,accept){try{await savesFinished();const
 $('vacationScheduledDays').onclick=()=>{$('attendanceVacationDays').querySelectorAll('[data-vacation-day]').forEach(input=>input.checked=!input.disabled);};$('vacationJustThisDay').onclick=()=>{$('attendanceVacationDays').querySelectorAll('[data-vacation-day]').forEach(input=>input.checked=+input.dataset.vacationDay===editing.day);};
 
 function renderWeeklyVacations(){
- const weeks=weeklyVacations(workspace,workspace.activeWeek);
- for(const [i,prefix] of ['vacationThisWeek','vacationNextWeek'].entries()){
-  const week=weeks[i];$(prefix+'Dates').textContent=displayDate(week.from)+' through '+displayDate(week.to);
-  $(prefix+'List').innerHTML=week.guards.length?week.guards.map(g=>'<div class="vacation-guard"><b>'+esc(g.guard)+'</b><span>'+g.ranges.map(r=>displayDate(r.from)+(r.from===r.to?'':' through '+displayDate(r.to))).join(' · ')+'</span></div>').join(''):'<p class="muted">No vacations recorded.</p>';
- }
+ const [week]=weeklyVacations(workspace,workspace.activeWeek),upcoming=upcomingVacations(workspace,scheduleToday());
+ $('vacationThisWeekDates').textContent=displayDate(week.from)+' through '+displayDate(week.to);
+ $('vacationThisWeekList').innerHTML=week.guards.length?week.guards.map(g=>'<div class="vacation-guard"><b>'+esc(g.guard)+'</b><span>'+g.ranges.map(r=>displayDate(r.from)+(r.from===r.to?'':' through '+displayDate(r.to))).join(' · ')+'</span></div>').join(''):'<p class="muted">No vacations recorded.</p>';
+ $('vacationNextWeekDates').textContent='From today · '+displayDate(upcoming.from)+' through '+displayDate(upcoming.to);
+ $('vacationNextWeekList').innerHTML=upcoming.guards.length?upcoming.guards.map(g=>'<div class="vacation-guard"><b>'+esc(g.guard)+'</b><span>'+displayDate(g.from)+(g.from===g.to?'':' through '+displayDate(g.to))+'</span><span class="vacation-countdown">'+(g.daysUntil===0?'Starts today':g.daysUntil===1?'Starts tomorrow':'Starts in '+g.daysUntil+' days')+'</span></div>').join(''):'<p class="muted">No vacations starting in the next 14 days.</p>';
 }
 
 function renderWeeklyLeave(){

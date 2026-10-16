@@ -14,3 +14,13 @@ export function weeklyVacations(workspace,weekEnd){
   })};
  });
 }
+
+// Upcoming starts are anchored to today, independent of the week being viewed.
+export function upcomingVacations(workspace,today,days=14){
+ const offset=(date,n)=>{const d=new Date(date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);},to=offset(today,days),groups=new Map();
+ const add=(guard,from,end)=>{if(!guard||!from||!end)return;if(!groups.has(guard))groups.set(guard,[]);groups.get(guard).push({from,to:end});};
+ for(const v of workspace.vacations||[])add(v.guard,v.from,v.to);
+ for(const [week,state] of Object.entries(workspace.weeks||{})){if(state.isTest)continue;const dates=datesForWeek(week);for(const e of state.events||[])if(e.type==='Vacation'&&dates[e.day])add(e.guard,dates[e.day],dates[e.day]);}
+ const guards=[];for(const [guard,ranges] of groups){const merged=[];for(const r of ranges.sort((a,b)=>a.from.localeCompare(b.from)||a.to.localeCompare(b.to))){const last=merged.at(-1);if(last&&r.from<=offset(last.to,1))last.to=last.to>r.to?last.to:r.to;else merged.push({...r});}for(const r of merged)if(r.from>=today&&r.from<=to)guards.push({guard,...r,daysUntil:Math.round((Date.parse(r.from+'T12:00:00Z')-Date.parse(today+'T12:00:00Z'))/86400000)});}
+ return {from:today,to,guards:guards.sort((a,b)=>a.from.localeCompare(b.from)||a.guard.localeCompare(b.guard))};
+}
