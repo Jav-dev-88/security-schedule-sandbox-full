@@ -10,7 +10,7 @@ test('Management tabs open the request week, preserve reports, save allowances a
   insertBefore(e){this.append(e);}
   querySelector(){return new Element();}
   querySelectorAll(selector){if(!selector.startsWith('[data-'))return [];this.cache??={};if(this.cache[selector])return this.cache[selector];const key=selector.slice(1,-1);return this.cache[selector]=[...this.innerHTML.matchAll(new RegExp(key+'="([^"]+)"','g'))].map(m=>{const e=new Element();e.dataset[key.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase())]=m[1];return e;});}
-  setAttribute(){}scrollIntoView(){}
+  setAttribute(){}scrollIntoView(){}showModal(){this.open=true;}close(){this.open=false;}
  }
  for(const id of ['payrollDetails','payrollPanel','staffAccessTools','weekSelect','printPayroll'])nodes.set(id,new Element(id));
  const tabs=['missing','leave','reports','seniority'].map(name=>{const e=new Element();e.dataset.hoursTab=name;return e;});
@@ -24,7 +24,7 @@ test('Management tabs open the request week, preserve reports, save allowances a
  await vm.runInContext("choose('reports')",context);assert.equal(nodes.get('payrollPanel').hidden,false);assert.equal(nodes.get('peopleContent').hidden,true);
  await vm.runInContext("choose('leave')",context);nodes.get('peopleContent').querySelectorAll('[data-edit-balance]')[0].onclick();
 
- nodes.get('allowSick').value='8';nodes.get('allowPersonal').value='3';await nodes.get('balanceForm').onsubmit({preventDefault(){}});await new Promise(r=>setImmediate(r));assert.equal(saved.at(-1).leaveAllowances[2026].A.sick,8);
- await vm.runInContext("choose('seniority')",context);nodes.get('peopleContent').querySelectorAll('[data-hire]')[0].onclick();nodes.get('hireDate').value='2010-01-01';await nodes.get('hireForm').onsubmit({preventDefault(){}});await new Promise(r=>setImmediate(r));assert.equal(saved.at(-1).staffProfiles.A.hireDate,'2010-01-01');
+ assert.equal(nodes.get('peopleEditDialog').open,true);nodes.get('allowSick').value='99';nodes.get('cancelPeopleEdit').onclick();assert.equal(nodes.get('peopleEditDialog').open,false);assert.equal(saved.length,0);nodes.get('peopleContent').querySelectorAll('[data-edit-balance]')[0].onclick();nodes.get('allowSick').value='8';nodes.get('allowPersonal').value='3';await nodes.get('peopleEditForm').onsubmit({preventDefault(){}});await new Promise(r=>setImmediate(r));assert.equal(saved.at(-1).leaveAllowances[2026].A.sick,8);assert.equal(nodes.get('peopleEditDialog').open,false);
+ await vm.runInContext("choose('seniority')",context);nodes.get('peopleContent').querySelectorAll('[data-hire]')[0].onclick();assert.equal(nodes.get('peopleEditDialog').open,true);nodes.get('hireDate').value='2010-01-01';const savePeople=context.window.scheduleApp.savePeople;context.window.scheduleApp.savePeople=async()=>{throw Error('Save failed');};await nodes.get('peopleEditForm').onsubmit({preventDefault(){}});assert.equal(nodes.get('peopleEditDialog').open,true);assert.equal(nodes.get('peopleEditStatus').textContent,'Save failed');assert.equal(nodes.get('peopleEditFields').disabled,false);context.window.scheduleApp.savePeople=savePeople;await nodes.get('peopleEditForm').onsubmit({preventDefault(){}});await new Promise(r=>setImmediate(r));assert.equal(saved.at(-1).staffProfiles.A.hireDate,'2010-01-01');assert.equal(nodes.get('peopleEditDialog').open,false);
  requests[0].payload.week='2024-01-14';await vm.runInContext("choose('missing')",context);assert(nodes.get('missingReview').innerHTML.includes('weekly schedule has not been created'));assert(nodes.get('missingMaster'));
 });
