@@ -1,3 +1,4 @@
+import {staffingHoursSummary} from './schedule-summary.js';
 import {ledger,applyRows} from './editor-model.js';
 import {workedTotalsByDay,payrollSummary} from './payroll.js';
 import {payrollForWeek} from './payroll-transfers.js';
@@ -19,5 +20,5 @@ export function weeklyHoursBreakdown(workspace,week,{guard='',day='all'}={}){
  const masterHours=[...baseline.values()].reduce((n,r)=>n+r.worked,0),scheduledHours=[...scheduled.values()].reduce((n,r)=>n+r.worked,0),payrollHours=sum(pay,'worked'),incoming=state.isTest?0:sum(pay,'transferredIn'),outgoing=state.isTest?0:sum(pay,'transferredOut');
  const transfers=state.isTest?[]:(workspace.payrollTransfers||[]).filter(t=>(!guard||t.guard===guard)&&(t.fromWeek===week&&(day==='all'||t.day===Number(day))||t.toWeek===week&&!workspace.weeks[t.fromWeek]?.isTest&&(day==='all'||Number(day)===6)));
  applyRows(state);
- return {week,isTest:!!state.isTest,masterHours,scheduledHours,payrollHours,weeklyDelta:scheduledHours-masterHours,payrollDelta:payrollHours-scheduledHours,incoming,outgoing,reconciliation:payrollHours-scheduledHours-incoming+outgoing,masterOverlap:master.reduce((n,r)=>n+(r.end-r.start)/60,0)-masterHours,weeklyOverlap:weekly.reduce((n,r)=>n+(r.end-r.start)/60,0)-scheduledHours,paidLeave:sum(pay,'paidLeave'),adjustments:sum(pay,'adjustmentHours'),payable:sum(pay,'payable'),changes,payrollChanges,transfers};
+ return {masterStaffing:staffingHoursSummary(workspace.master,day),weeklyStaffing:staffingHoursSummary(state,day),week,isTest:!!state.isTest,masterHours,scheduledHours,payrollHours,weeklyDelta:scheduledHours-masterHours,payrollDelta:payrollHours-scheduledHours,incoming,outgoing,reconciliation:payrollHours-scheduledHours-incoming+outgoing,masterOverlap:master.reduce((n,r)=>n+(r.end-r.start)/60,0)-masterHours,weeklyOverlap:weekly.reduce((n,r)=>n+(r.end-r.start)/60,0)-scheduledHours,paidLeave:sum(pay,'paidLeave'),adjustments:sum(pay,'adjustmentHours'),payable:sum(pay,'payable'),changes,payrollChanges,transfers};
 }
