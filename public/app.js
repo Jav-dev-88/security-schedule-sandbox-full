@@ -1,3 +1,4 @@
+import {downloadScheduleExcel} from './schedule-excel.js';
 import {changedWeeklyShifts,transfersForWeek} from './weekly-changes.js';
 import {weeklyVacations} from './weekly-vacations.js';
 import {guardHoursTotals} from './weekly-hours.js';
@@ -116,7 +117,7 @@ function showPage(next,notify=true){if(activeInline){closeInlineCell();if(active
 function renderWorkflow(){
  renderLeaveTypes();renderHolidayCredits();
  const weekly=['master','weekly'].includes(page),operations=['weekly','coverage','payroll'].includes(page);$('managementPage').classList.toggle('hidden',!['requests','history'].includes(page));$('requestsActions').hidden=page!=='requests';$('historyActions').hidden=page!=='history';$('historyDeletedSlot').hidden=page!=='history';$('weekTitle').hidden=$('weekRange').hidden=!operations&&!weekly;$('scheduleStatsControls').hidden=page!=='weekly';$('weeklyVacationSummary').hidden=page!=='weekly';const hoursSlot=$(page==='weekly'?'weeklyGuardHoursSlot':'payrollGuardHoursSlot');if(hoursSlot&&$('guardHoursSection').parentElement!==hoursSlot)hoursSlot.append?.($('guardHoursSection'));$('appNotice').hidden=!weekly||state.rows.length>0;$('modernHourDetails').hidden=true;$('weeklyLeavePanel').hidden=page!=='coverage';$('printExportMenu').hidden=false;
- for(const [id,show] of [['printSchedule',weekly],['downloadSchedulePdf',page==='weekly'],['emailSchedule',page==='weekly'],['printPayroll',page==='payroll'],['exportCsv',page==='payroll'],['downloadTransferPayroll',page==='payroll'],['printCoverage',page==='coverage'],['printManagerPage',['staff','requests','history'].includes(page)]])$(id).hidden=!show;
+ for(const [id,show] of [['printSchedule',weekly],['saveScheduleExcel',weekly],['downloadSchedulePdf',page==='weekly'],['emailSchedule',page==='weekly'],['printPayroll',page==='payroll'],['exportCsv',page==='payroll'],['downloadTransferPayroll',page==='payroll'],['printCoverage',page==='coverage'],['printManagerPage',['staff','requests','history'].includes(page)]])$(id).hidden=!show;
  $('modernToolbar').hidden=!operations&&!weekly;$('modernCreateWeek').hidden=!['master','weekly'].includes(page);for(const id of ['modernPlatoonSlot','modernSearchSlot','modernPrintSlot','modernSettings'])$(id).hidden=!['master','weekly'].includes(page);
  $('workflowBar').classList.toggle('hidden',!operations&&!weekly);
  $('createWeekControls').hidden=!['master','weekly'].includes(page);
@@ -281,3 +282,5 @@ function renderGuardHours(payRows,guard,day,weekNames){
  $('guardHoursSummary').querySelectorAll('[data-guard-hours]').forEach(b=>b.onclick=()=>{$('payGuard').value=b.dataset.guardHours;render();});
 }
 $('openGuardWeeklyHours').onclick=()=>{resetHoursFilters();showPage('weekly');$('guardHoursSection').open=true;$('guardHoursSection').scrollIntoView?.({behavior:'smooth',block:'start'});};
+
+$('saveScheduleExcel').onclick=()=>{try{if(activeInline){closeInlineCell();if($('attendanceEditor').open||activeInline)return;}if(activeRowField){closeRowField();if(activeRowField)return;}const filename=downloadScheduleExcel(workspace,state,workspace.mode,workspace.activeWeek);status('Downloaded '+filename);}catch(e){status('Excel download failed: '+e.message,true);}};
