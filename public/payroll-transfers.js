@@ -12,13 +12,16 @@ function incomingShiftRecords(workspace,records){
   if(!sources.has(t.fromWeek))sources.set(t.fromWeek,workspace.weeks[t.fromWeek]?ledger(workspace.weeks[t.fromWeek]).filter(r=>r.guard&&!r.paidHoliday):[]);
   const offset=t.day*1440,billing=sources.get(t.fromWeek).filter(r=>r.guard===t.guard&&r.billable).map(r=>[Math.max(t.start,r.day*1440+r.start-offset),Math.min(t.end,r.day*1440+r.end-offset)]).filter(([a,b])=>a<b);
   const bounds=[...new Set([t.start,t.end,...billing.flat()])].sort((a,b)=>a-b);
-  return bounds.slice(0,-1).map((start,i)=>({...t,day:6,start,end:bounds[i+1],billable:t.billable||billing.some(([a,b])=>a<=start&&b>=bounds[i+1])}));
+  return bounds.slice(0,-1).map((start,i)=>({...t,start,end:bounds[i+1],billable:t.billable||billing.some(([a,b])=>a<=start&&b>=bounds[i+1])}));
  });
 }
-export function payrollForWeek(workspace,week,stateOverride=null){const state=stateOverride||workspace.weeks[week]||{rows:[],plans:{},overrides:{},events:[]};if(state.isTest)return [];const out=(workspace.payrollTransfers||[]).filter(t=>t.fromWeek===week),incoming=(workspace.payrollTransfers||[]).filter(t=>t.toWeek===week&&!workspace.weeks[t.fromWeek]?.isTest);const result=payrollSummary(state,8,out.map(t=>t.segment),incomingShiftRecords(workspace,incoming)),groups=new Map(result.map(g=>[g.guard+'|'+g.day,g]));
+export function payrollForWeek(workspace,week,stateOverride=null){const state=stateOverride||workspace.weeks[week]||{rows:[],plans:{},overrides:{},events:[]};if(state.isTest)return [];const out=(workspace.payrollTransfers||[]).filter(t=>t.fromWeek===week),incoming=(workspace.payrollTransfers||[]).filter(t=>t.toWeek===week&&!workspace.weeks[t.fromWeek]?.isTest);const result=payrollSummary(state,8,out.map(t=>t.segment)),groups=new Map(result.map(g=>[g.guard+'|'+g.day,g]));
  const group=(guard,day)=>{const k=guard+'|'+day;if(!groups.has(k))groups.set(k,{guard,day,shifts:[],worked:0,billable:0,nonBillable:0,regular:0,extraWorked:0,paidLeave:0,adjustmentHours:0,payable:0,overlap:0,crossSunday:false});return groups.get(k);};
  for(const [key,h]of workedTotalsByDay(out)){const split=key.lastIndexOf('|');group(key.slice(0,split),+key.slice(split+1)).transferredOut=h.worked;}
- for(const [key,h]of workedTotalsByDay(incoming.map(t=>({...t,day:6})))){const split=key.lastIndexOf('|');group(key.slice(0,split),6).transferredIn=h.worked;}
+ // A transfer changes the payroll week, not the actual date worked. Deduplicate
+ // within each source week, then add distinct source dates to destination Sunday.
+ const incomingShifts=incomingShiftRecords(workspace,incoming);
+ for(const fromWeek of new Set(incoming.map(t=>t.fromWeek)))for(const [key,h]of workedTotalsByDay(incomingShifts.filter(t=>t.fromWeek===fromWeek))){const split=key.lastIndexOf('|'),g=group(key.slice(0,split),6);g.worked+=h.worked;g.billable+=h.billable;g.transferredIn=(g.transferredIn||0)+h.worked;}
  for(const g of groups.values()){g.nonBillable=g.worked-g.billable;g.regular=Math.min(8,g.worked);g.extraWorked=Math.max(0,g.worked-8);g.payable=g.worked+g.paidLeave+g.adjustmentHours;}
  return withWeeklyOvertime([...groups.values()],workspace.settings?.overtimeHours??40);
 }

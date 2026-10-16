@@ -19,9 +19,9 @@ test('overnight overlap across adjacent shift days counts each minute once and k
  assert.equal(sum(pay,'worked'),15);assert.equal(sum(pay,'billable'),8);assert.equal(sum(pay,'overlap'),1);assert(pay.every(g=>g.billable<=g.worked));
  assert.equal(pay.find(g=>g.day===0).worked,8);assert.equal(pay.find(g=>g.day===1).worked,7);
 });
-test('incoming transfer overlapping a destination assignment is counted once',()=>{
+test('transferring a different work date retains legitimate destination-week hours',()=>{
  let w=setup([row('shift',420,900)],[row('destination',420,900,6)]);w=addPayrollTransfer(w,w.activeWeek,ledger(w.weeks[w.activeWeek])[0],'2026-10-11','Continuation');
- assert.equal(sum(payrollForWeek(w,w.activeWeek),'worked'),0);const dest=payrollForWeek(w,'2026-10-11');assert.equal(sum(dest,'worked'),8);assert.equal(sum(dest,'transferredIn'),8);assert.doesNotThrow(()=>validateWorkspace(w));
+ assert.equal(sum(payrollForWeek(w,w.activeWeek),'worked'),0);const dest=payrollForWeek(w,'2026-10-11');assert.equal(sum(dest,'worked'),16);assert.equal(sum(dest,'transferredIn'),8);assert.doesNotThrow(()=>validateWorkspace(w));
 });
 test('outgoing transfer removes overlapping source minutes too, while preserving work and billing across weeks',()=>{
  let w=setup([row('shift',420,900),row('overlap',600,960,0,true)]);const before=payrollSummary(w.weeks[w.activeWeek]);w=addPayrollTransfer(w,w.activeWeek,ledger(w.weeks[w.activeWeek]).find(r=>r.source==='shift'),'2026-10-11','Move hours');
@@ -39,4 +39,11 @@ test('shared work calculation agrees with an independent minute-by-minute refere
   const key=guard+'|'+Math.min(...active.map(r=>r.day)),g=expected.get(key)||{worked:0,billable:0};g.worked++;if(active.some(r=>r.billable))g.billable++;expected.set(key,g);
  }
  const actual=workedTotalsByDay(shifts);assert.equal(actual.size,expected.size);for(const [key,v]of expected){assert(Math.abs(actual.get(key).worked-v.worked/60)<1e-8,key);assert(Math.abs(actual.get(key).billable-v.billable/60)<1e-8,key);}
+});
+
+test('distinct days and source weeks transferred to one payroll week stay separate',()=>{
+ let w=setup([row('monday',420,900),row('tuesday',420,900,1)]);w.weeks['2026-10-25']=state([row('another-monday',420,900)]);
+ const shifts=ledger(w.weeks[w.activeWeek]);for(const r of shifts)w=addPayrollTransfer(w,w.activeWeek,r,'2026-10-11','Distinct work date');
+ w=addPayrollTransfer(w,'2026-10-25',ledger(w.weeks['2026-10-25'])[0],'2026-10-11','Another source week');
+ const dest=payrollForWeek(w,'2026-10-11');assert.equal(sum(dest,'worked'),24);assert.equal(sum(dest,'transferredIn'),24);assert.equal(sum(payrollForWeek(w,w.activeWeek),'worked'),0);
 });
