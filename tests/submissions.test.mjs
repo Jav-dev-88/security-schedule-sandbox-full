@@ -101,3 +101,28 @@ test('Cancellation racing an hours approval cannot add pay after the request is 
   const after=(await call(env,'/api/workspace',{cookie})).data.workspace;assert.equal(after.weeks[w.activeWeek].adjustments?.length||0,0);
  }finally{env.DB.close();}
 });
+
+test('Missing start/end are calculated by server; payment ledger supports partial payment, retries and permissions without duplicate payroll',async()=>{
+ const f=await fixture(),{env,cookie,guards}=f;try{
+  const {workspace:w}=(await call(env,'/api/workspace',{cookie})).data,d=new Date(w.activeWeek+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-6);const workDate=d.toISOString().slice(0,10);
+  const data={kind:'MISSING_HOURS',workDate,startTime:'23:00',endTime:'01:30',hours:99,note:'Overnight unpaid part'};
+  const created=await call(env,'/api/submissions',{cookie:guards[0].cookie,method:'POST',data});assert.equal(created.status,201);const id=created.data.id;
+  let r=(await call(env,'/api/submissions',{cookie:guards[0].cookie})).data.submissions[0];assert.equal(r.payload.hours,2.5);assert.equal(r.payload.overnight,true);assert.equal(r.payload.startTime,'23:00');
+  assert.equal((await call(env,'/api/submissions',{cookie:guards[0].cookie,method:'POST',data:{...data,note:'duplicate changed note'}})).status,409);
+  for(const [startTime,endTime] of [['08:00','08:00'],['25:00','12:00'],['','12:00']])assert.equal((await call(env,'/api/submissions',{cookie:guards[0].cookie,method:'POST',data:{...data,startTime,endTime}})).status,400);
+  const payment={id:crypto.randomUUID(),hours:1,paidDate:workDate,note:'First payment'};
+  assert.equal((await call(env,'/api/submissions/'+id+'/payments',{cookie,method:'POST',data:payment})).status,409);
+  assert.equal((await call(env,'/api/submissions/'+id,{cookie,method:'PATCH',data:{action:'APPROVE'}})).status,200);
+  const before=(await call(env,'/api/workspace',{cookie})).data.workspace;
+  assert.equal((await call(env,'/api/submissions/'+id+'/payments',{cookie:guards[0].cookie,method:'POST',data:payment})).status,403);
+  assert.equal((await call(env,'/api/submissions/'+id+'/payments',{cookie,method:'POST',data:{...payment,paidDate:'2026-02-30'}})).status,400);
+  assert.equal((await call(env,'/api/submissions/'+id+'/payments',{cookie,method:'POST',data:payment})).status,201);
+  assert.equal((await call(env,'/api/submissions/'+id+'/payments',{cookie,method:'POST',data:payment})).status,200,'Retry is idempotent');
+  assert.equal((await call(env,'/api/submissions/'+id+'/payments',{cookie,method:'POST',data:{...payment,hours:2}})).status,409);
+  assert.equal((await call(env,'/api/submissions/'+id+'/payments',{cookie,method:'POST',data:{...payment,id:crypto.randomUUID(),hours:2}})).status,409,'Cannot overpay remaining hours');
+  assert.equal((await call(env,'/api/submissions/'+id+'/payments',{cookie,method:'POST',data:{...payment,id:crypto.randomUUID(),hours:1.5}})).status,201);
+  r=(await call(env,'/api/submissions',{cookie:guards[0].cookie})).data.submissions[0];assert.equal(r.payments.length,2);assert.equal(r.payments.reduce((n,p)=>n+p.hours,0),2.5);
+  assert.equal((await call(env,'/api/submissions',{cookie:guards[1].cookie})).data.submissions.length,0);
+  const after=(await call(env,'/api/workspace',{cookie})).data.workspace;assert.deepEqual(after,before,'Actual payment records do not add another payroll correction');
+ }finally{env.DB.close();}
+});

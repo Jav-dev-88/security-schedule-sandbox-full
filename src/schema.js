@@ -1,5 +1,6 @@
 // Create only missing tables in the database bound to this new Worker.
 const statements=[
+ "CREATE TABLE IF NOT EXISTS missing_pay_payments (id TEXT PRIMARY KEY,request_id TEXT NOT NULL REFERENCES guard_submissions(id),hours REAL NOT NULL CHECK(hours>0),paid_date TEXT NOT NULL,note TEXT NOT NULL,created_by TEXT NOT NULL,created_at TEXT NOT NULL)",
  "CREATE TABLE IF NOT EXISTS vacation_move_requests (id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),payload TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'PENDING',decision_note TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,decided_by TEXT,decided_at TEXT)",
   "CREATE TABLE IF NOT EXISTS guard_submissions (id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),kind TEXT NOT NULL CHECK(kind IN ('FUTURE_SWITCH','MISSING_HOURS')),payload TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'PENDING',partner_user_id TEXT REFERENCES users(id),partner_status TEXT NOT NULL DEFAULT 'NONE',decision_note TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,decided_by TEXT,decided_at TEXT)",
   "CREATE TABLE IF NOT EXISTS phone_access (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, phone TEXT NOT NULL UNIQUE, code_hash TEXT NOT NULL DEFAULT '', expires_at INTEGER NOT NULL DEFAULT 0)",

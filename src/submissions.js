@@ -1,3 +1,4 @@
+import {missingInterval} from '../public/people-model.js';
 import {masterShiftOptions,shiftSignature,checkPlannedSwitch,applyPlannedSwitch} from '../public/future-switches.js';
 import {datesForWeek,scheduleToday,currentScheduleWeek} from '../public/workspace-model.js';
 import {saveAdjustment} from '../public/pay-adjustments.js';
@@ -13,8 +14,8 @@ export async function submissionsApi(request,user,db,url,{body,json,fail,manager
  }
  if(path==='/api/submissions'&&method==='GET'){
   const query='SELECT r.*,u.name AS requester_name,u.guard_name AS requester_guard,p.name AS partner_name FROM guard_submissions r JOIN users u ON u.id=r.user_id LEFT JOIN users p ON p.id=r.partner_user_id';
-  const rows=canManage(user)?await db.prepare(query+' ORDER BY r.created_at DESC LIMIT 300').all():await db.prepare(query+' WHERE r.user_id=? OR r.partner_user_id=? ORDER BY r.created_at DESC LIMIT 100').bind(user.id,user.id).all();
-  const w=(await readWorkspace(db)).workspace;return json({submissions:rows.results.map(r=>{const plan=(w.futureSwitches||[]).find(p=>p.id===r.id);return {...r,payload:JSON.parse(r.payload),effectiveStatus:r.status==='APPROVED'&&plan?plan.status:r.status,detail:plan?.detail||''};})});
+  const rows=canManage(user)?await db.prepare(query+' ORDER BY r.created_at DESC').all():await db.prepare(query+' WHERE r.user_id=? OR r.partner_user_id=? ORDER BY r.created_at DESC LIMIT 100').bind(user.id,user.id).all();
+  const payments=(await db.prepare('SELECT * FROM missing_pay_payments ORDER BY created_at').all()).results;const w=(await readWorkspace(db)).workspace;return json({submissions:rows.results.map(r=>{const plan=(w.futureSwitches||[]).find(p=>p.id===r.id);return {...r,payload:JSON.parse(r.payload),payments:payments.filter(p=>p.request_id===r.id),effectiveStatus:r.status==='APPROVED'&&plan?plan.status:r.status,detail:plan?.detail||''};})});
  }
  if(path==='/api/submissions'&&method==='POST'){
   if(!user.guard_name)fail(403,'Your account needs a linked schedule name.');const b=await body(request),w=(await readWorkspace(db)).workspace;
@@ -25,11 +26,19 @@ export async function submissionsApi(request,user,db,url,{body,json,fail,manager
    try{payload.fromSignature=shiftSignature(w.master,b.fromKey,user.guard_name);payload.toSignature=shiftSignature(w.master,b.toKey,partner.guard_name);payload.from=masterShiftOptions(w.master,user.guard_name).find(s=>s.key===b.fromKey);payload.to=masterShiftOptions(w.master,partner.guard_name).find(s=>s.key===b.toKey);applyPlannedSwitch({...w,weeks:{...w.weeks,[b.week]:w.master}},user,partner,payload);}catch(e){fail(400,e.message);}
   }else if(b.kind==='MISSING_HOURS'){
    if(typeof b.workDate!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(b.workDate)||!Number.isFinite(Date.parse(b.workDate+'T12:00:00Z'))||new Date(b.workDate+'T12:00:00Z').toISOString().slice(0,10)!==b.workDate||b.workDate>scheduleToday())fail(400,'Choose a valid date today or earlier.');
-   const hours=Number(b.hours);if(!Number.isFinite(hours)||hours<=0||hours>24)fail(400,'Enter missing hours above 0 and no more than 24.');const week=currentScheduleWeek(new Date(b.workDate+'T16:00:00Z'));
-   payload={week,workDate:b.workDate,day:datesForWeek(week).indexOf(b.workDate),hours,guard:user.guard_name,note};
+   let interval={};if(b.startTime!==undefined||b.endTime!==undefined){try{interval=missingInterval(b.startTime,b.endTime);}catch(e){fail(400,e.message);}}const hours=interval.hours??Number(b.hours);if(!Number.isFinite(hours)||hours<=0||hours>24)fail(400,'Enter missing hours above 0 and no more than 24.');const week=currentScheduleWeek(new Date(b.workDate+'T16:00:00Z'));
+   payload={week,workDate:b.workDate,day:datesForWeek(week).indexOf(b.workDate),hours,...interval,guard:user.guard_name,note};
   }else fail(400,'Choose a future switch or missing hours.');
-  const existing=await db.prepare("SELECT payload FROM guard_submissions WHERE user_id=? AND kind=? AND status NOT IN ('DENIED','CANCELLED')").bind(user.id,b.kind).all();if(existing.results.some(r=>{const p=JSON.parse(r.payload);return b.kind==='MISSING_HOURS'?p.workDate===payload.workDate&&p.hours===payload.hours&&p.note===note:p.week===payload.week&&p.fromKey===payload.fromKey&&p.toKey===payload.toKey&&p.partner===payload.partner;}))fail(409,'This request was already submitted. Check My requests.');
+  const existing=await db.prepare("SELECT payload FROM guard_submissions WHERE user_id=? AND kind=? AND status NOT IN ('DENIED','CANCELLED')").bind(user.id,b.kind).all();if(existing.results.some(r=>{const p=JSON.parse(r.payload);return b.kind==='MISSING_HOURS'?p.workDate===payload.workDate&&(payload.startTime&&p.startTime?p.startTime===payload.startTime&&p.endTime===payload.endTime:p.hours===payload.hours&&p.note===note):p.week===payload.week&&p.fromKey===payload.fromKey&&p.toKey===payload.toKey&&p.partner===payload.partner;}))fail(409,'This request was already submitted. Check My requests.');
   const id=crypto.randomUUID();await db.prepare('INSERT INTO guard_submissions(id,user_id,kind,payload,partner_user_id,partner_status,created_at) VALUES(?,?,?,?,?,?,?)').bind(id,user.id,b.kind,JSON.stringify(payload),partner?.id||null,partner?'PENDING':'NONE',now()).run();await audit(db,user,'GUARD_SUBMISSION',b.kind+' '+id);return json({id},201);
+ }
+ const paymentMatch=path.match(/^\/api\/submissions\/([^/]+)\/payments$/);
+ if(paymentMatch&&method==='POST'){
+  manager(user);const r=await db.prepare('SELECT * FROM guard_submissions WHERE id=?').bind(paymentMatch[1]).first();if(!r||r.kind!=='MISSING_HOURS')fail(404,'Missing-hours request not found.');if(r.status!=='APPROVED')fail(409,'Approve the request before recording payment.');
+  const b=await body(request),hours=Number(b.hours),p=JSON.parse(r.payload);if(!Number.isFinite(hours)||hours<=0||hours>p.hours)fail(400,'Enter valid paid hours.');if(typeof b.id!=='string'||!/^[-a-zA-Z0-9]{10,80}$/.test(b.id))fail(400,'Payment identifier required.');
+  if(typeof b.paidDate!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(b.paidDate)||!Number.isFinite(Date.parse(b.paidDate+'T12:00:00Z'))||new Date(b.paidDate+'T12:00:00Z').toISOString().slice(0,10)!==b.paidDate||b.paidDate>scheduleToday())fail(400,'Choose a valid payment date today or earlier.');
+  const old=await db.prepare('SELECT * FROM missing_pay_payments WHERE id=?').bind(b.id).first();if(old){if(old.request_id!==r.id||old.hours!==hours||old.paid_date!==b.paidDate)fail(409,'Payment identifier already used.');return json({ok:true});}
+  const result=await db.prepare("INSERT OR IGNORE INTO missing_pay_payments(id,request_id,hours,paid_date,note,created_by,created_at) SELECT ?,?,?,?,?,?,? WHERE (SELECT COALESCE(SUM(hours),0) FROM missing_pay_payments WHERE request_id=?) + ? <= ? + 0.0000001").bind(b.id,r.id,hours,b.paidDate,String(b.note||'').slice(0,500),user.id,now(),r.id,hours,p.hours).run();if(!result.meta.changes){const retry=await db.prepare('SELECT * FROM missing_pay_payments WHERE id=?').bind(b.id).first();if(retry&&retry.request_id===r.id&&retry.hours===hours&&retry.paid_date===b.paidDate)return json({ok:true});fail(409,'Payment exceeds the remaining hours. Refresh this request.');}await audit(db,user,'MISSING_PAY_PAYMENT',r.id+' '+hours+' hours');return json({ok:true},201);
  }
  const match=path.match(/^\/api\/submissions\/([^/]+)$/);if(!match||method!=='PATCH')fail(404,'Request endpoint not found.');
  const r=await db.prepare('SELECT * FROM guard_submissions WHERE id=?').bind(match[1]).first();if(!r)fail(404,'Request not found.');const b=await body(request);
