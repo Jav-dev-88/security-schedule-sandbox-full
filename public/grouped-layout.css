@@ -5,3 +5,12 @@ body.modern-manager{background:#fff;color:#17334f}body.modern-manager #managerAp
 .holiday-credit-section{border-top:1px solid #dce5ef;margin-top:20px;padding-top:16px}#holidayCreditEditor label{display:block;margin:12px 0 6px}
 
 .guard-hours-section{margin:20px 0}.guard-hours-table td:not(:first-child),.guard-hours-table th:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}.guard-hours-table .row-tool{font-size:inherit;text-align:left}#dailyShiftDetails{margin:18px 0}#dailyShiftDetails>summary{font-weight:bold;cursor:pointer;margin-bottom:12px}
+
+.guard-hours-section>summary{cursor:pointer;font-size:1.05rem;font-weight:700;color:#17364b;padding:12px 0}
+.guard-hours-section[open]>summary{margin-bottom:10px}
+.weekly-vacations{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin:18px 0}
+.weekly-vacations>div{border:1px solid #d9e5e8;border-top:3px solid #238b87;border-radius:8px;padding:16px;background:#fff}
+.weekly-vacations h3{margin:0 0 8px;color:#17364b}
+.vacation-guard{display:flex;flex-direction:column;gap:4px;padding:10px 0;border-top:1px solid #e8eff1}
+.vacation-guard span{color:#526775;font-size:.9rem}
+@media(max-width:700px){.weekly-vacations{grid-template-columns:1fr}}
