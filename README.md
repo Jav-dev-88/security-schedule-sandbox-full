@@ -22,3 +22,5 @@ Coverage notes now fill automatically from the weekly assignments, absence recor
 The weekly page has a collapsible Why hours differ section below the three totals. It reconciles current Master assignments to the weekly schedule, then scheduled work to payroll work, following the selected guard/day filters. It lists changed assignments, absence reasons, affected guard/date/post/times and payroll-week transfer records. Totals reconcile overlapping minutes and show paid leave / adjustments separately; the explanation is read-only.
 
 Weekly staffing cards show Master total, Weekly total, Assigned to guards and Still open. Staffing counts required post positions; payroll worked is shown separately and reconciles overlaps and payroll-week transfers. Covering or changing a vacation replacement moves coverage to the new guard while preserving the original vacation and its leave credit.
+
+Guard phone temporary codes do not expire. Each code works once; generating a replacement invalidates the previous code. Unused saved codes also remain valid regardless of their old expiry timestamp. Temporary passwords still require a new password at first sign-in.
