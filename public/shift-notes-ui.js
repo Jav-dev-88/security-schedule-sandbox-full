@@ -1,0 +1,28 @@
+import {noteShiftOptions,saveShiftNote} from './shift-notes.js';
+import {datesForWeek} from './workspace-model.js';
+const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),time=n=>String(Math.floor(n%1440/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
+const app=()=>window.scheduleApp;
+let saving=false;
+function label(s,week){return s.guard+' · '+datesForWeek(week)[s.day]+' · '+s.post+' · '+time(s.start)+'–'+time(s.end)+(s.end>=1440?' (+1 day)':'');}
+function render(){
+ const w=app().getWorkspace(),week=w.activeWeek,notes=w.weeks[week].shiftNotes||[],host=$('weeklyShiftNotes');host.hidden=app().getPage()!=='weekly';
+ $('weeklyShiftNotesTitle').textContent='Extra hours & covering notes · '+notes.length;
+ $('weeklyShiftNoteList').innerHTML=notes.length?'<div class="table-wrap"><table class="paytable"><thead><tr><th>Guard / Date</th><th>Post / Time</th><th>Reason</th><th>Note</th><th class="controls">Actions</th></tr></thead><tbody>'+notes.slice().sort((a,b)=>a.day-b.day||a.start-b.start).map(n=>'<tr><td>'+esc(n.guard)+'<br>'+datesForWeek(week)[n.day]+'</td><td>'+esc(n.post)+'<br>'+time(n.start)+'–'+time(n.end)+(n.end>=1440?' (+1 day)':'')+'</td><td>'+esc(n.kind)+'</td><td class="saved-shift-note">'+esc(n.text)+'</td><td class="controls"><button data-edit-shift-note="'+esc(n.id)+'">Edit</button><button data-delete-shift-note="'+esc(n.id)+'">Delete</button></td></tr>').join('')+'</tbody></table></div>':'<p class="muted">No notes saved for this week.</p>';
+ $('weeklyShiftNoteList').querySelectorAll('[data-edit-shift-note]').forEach(b=>b.onclick=()=>open(null,b.dataset.editShiftNote));
+ $('weeklyShiftNoteList').querySelectorAll('[data-delete-shift-note]').forEach(b=>b.onclick=async()=>{if(saving)return;saving=true;try{await app().saveShiftNotes((app().getState().shiftNotes||[]).filter(n=>n.id!==b.dataset.deleteShiftNote));$('shiftNoteSectionStatus').textContent='Note deleted.';}catch(e){$('shiftNoteSectionStatus').textContent=e.message;}finally{saving=false;}});
+}
+function open(target=null,id=null){
+ const w=app().getWorkspace(),week=w.activeWeek,state=w.weeks[week],previous=id?(state.shiftNotes||[]).find(n=>n.id===id):null,options=noteShiftOptions(state);
+ const match=target&&options.find(s=>s.guard===target.guard&&s.day===target.day&&s.parts.some(p=>p.source===target.source&&p.start===target.start&&p.end===target.end));
+ const dialog=$('shiftNoteDialog');dialog.innerHTML='<form id="shiftNoteForm"><h2 id="shiftNoteDialogTitle">'+(previous?'Edit shift note':'Add shift note')+'</h2><p class="muted">W-E '+week+' · Keep details about extra hours or coverage.</p><fieldset id="shiftNoteFields">'+(previous?'<p>'+esc(label(previous,week))+'</p>':'<label>Guard / scheduled shift<select id="shiftNoteChoice" required><option value="">Choose shift</option>'+options.map((s,i)=>'<option value="'+i+'">'+esc(label(s,week))+'</option>').join('')+'</select></label>')+'<label>Reason<select id="shiftNoteKind">'+['Extra hours','Covering shift','Other'].map(k=>'<option>'+k+'</option>').join('')+'</select></label><label>Note<textarea id="shiftNoteText" maxlength="500" rows="4" required autofocus placeholder="Example: Stayed until 19:00 to cover the dock for Flores."></textarea></label><p class="muted">Notes do not change hours. Record actual assignments and times on the weekly schedule.</p><div class="toolbar"><button id="cancelShiftNote" type="button">Cancel</button><button type="submit" class="primary" '+(!previous&&!options.length?'disabled':'')+'>Save note</button></div></fieldset><p id="shiftNoteError" class="error" role="status"></p></form>';
+ if(!previous&&match)$('shiftNoteChoice').value=String(options.indexOf(match));$('shiftNoteKind').value=previous?.kind||(target?.isCoverage?'Covering shift':'Extra hours');$('shiftNoteText').value=previous?.text||'';
+ if(!previous&&!options.length)$('shiftNoteError').textContent='Assign a guard to a shift before adding a note.';
+ $('cancelShiftNote').onclick=()=>dialog.close();dialog.oncancel=e=>{if(saving)e.preventDefault();};
+ $('shiftNoteForm').onsubmit=async e=>{e.preventDefault();if(saving)return;saving=true;$('shiftNoteFields').disabled=true;try{if(app().getWorkspace().activeWeek!==week)throw Error('The selected week changed. Reopen the note.');const choice=previous?null:options[Number($('shiftNoteChoice').value)];if(!previous&&$('shiftNoteChoice').value==='')throw Error('Choose a scheduled shift.');const next=saveShiftNote(app().getState(),choice,{kind:$('shiftNoteKind').value,text:$('shiftNoteText').value},id);await app().saveShiftNotes(next.shiftNotes);dialog.close();$('weeklyShiftNotes').open=true;$('shiftNoteSectionStatus').textContent='Shift note saved.';}catch(error){$('shiftNoteError').textContent=error.message;}finally{saving=false;$('shiftNoteFields').disabled=false;}};
+ dialog.showModal();
+}
+export function initShiftNotes(){
+ const section=document.createElement('details');section.id='weeklyShiftNotes';section.className='panel controls';section.innerHTML='<summary id="weeklyShiftNotesTitle">Extra hours &amp; covering notes</summary><div class="toolbar"><button id="addWeeklyShiftNote">+ Add note</button><span class="muted">Saved with this week.</span></div><div id="weeklyShiftNoteList"></div><p id="shiftNoteSectionStatus" class="muted" role="status"></p>';
+ $('schedulePanel').append(section);const dialog=document.createElement('dialog');dialog.id='shiftNoteDialog';dialog.setAttribute('aria-labelledby','shiftNoteDialogTitle');$('managerApp').append(dialog);
+ $('addWeeklyShiftNote').onclick=()=>open();window.openShiftNote=target=>open(target);window.scheduleNotesChanged=render;render();
+}
