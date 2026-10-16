@@ -1,9 +1,14 @@
 import {assignmentClassifier} from './assignment-status.js';
 import {ledger,linkedParts,linkedRows} from './editor-model.js';
-export function noteShiftOptions(state){
- const seen=new Set(),options=[];
- for(const r of ledger(state).filter(r=>r.guard&&!r.paidHoliday)){
-  const linked=linkedParts(state,r),parts=linked.length?linked:[r],sorted=parts.slice().sort((a,b)=>a.start-b.start),key=JSON.stringify(sorted.map(x=>[x.source,x.day,x.start,x.end,x.guard]));
+export function noteEligibleShifts(master,state){
+ const normal=ledger(master),classify=assignmentClassifier(master,state);
+ return ledger(state).map(classify).filter(r=>r.guard&&!r.paidHoliday&&(r.isCoverage||r.moveNote||!normal.some(n=>n.guard===r.guard&&n.day===r.day&&n.post===r.post&&n.start===r.start&&n.end===r.end)));
+}
+export const noteShiftKey=r=>JSON.stringify([r.source,r.guard,r.day,r.start,r.end]);
+export function noteShiftOptions(state,master=null){
+ const seen=new Set(),options=[],eligible=master?noteEligibleShifts(master,state):ledger(state).filter(r=>r.guard&&!r.paidHoliday),keys=new Set(eligible.map(noteShiftKey));
+ for(const r of eligible){
+  const linked=linkedParts(state,r).filter(p=>keys.has(noteShiftKey(p))),parts=linked.length?linked:[r],sorted=parts.slice().sort((a,b)=>a.start-b.start),key=JSON.stringify(sorted.map(x=>[x.source,x.day,x.start,x.end,x.guard]));
   if(seen.has(key))continue;seen.add(key);options.push({key,guard:r.guard,day:r.day,post:[...new Set(sorted.map(x=>x.post))].join(' + '),start:Math.min(...parts.map(x=>x.start)),end:Math.max(...parts.map(x=>x.end)),parts:sorted.map(x=>({source:x.source,start:x.start,end:x.end}))});
  }
  return options.sort((a,b)=>a.day-b.day||a.start-b.start||a.guard.localeCompare(b.guard));
@@ -40,6 +45,6 @@ export function automaticCoverageNotes(master,state){
 }
 function sameShift(a,b){return a.guard===b.guard&&a.day===b.day&&a.start===b.start&&a.end===b.end&&JSON.stringify(a.parts)===JSON.stringify(b.parts);}
 export function weeklyShiftNotes(master,state){
- const manual=state.shiftNotes||[],used=new Set(),auto=automaticCoverageNotes(master,state).map(note=>{const comments=manual.filter(n=>n.id===note.id||n.kind==='Covering shift'&&sameShift(n,note));comments.forEach(n=>used.add(n.id));return {...note,comment:comments.map(n=>n.text).join('\n'),commentIds:comments.map(n=>n.id)};});
+ const eligible=new Set(noteEligibleShifts(master,state).map(noteShiftKey)),manual=(state.shiftNotes||[]).filter(n=>n.parts.some(p=>eligible.has(noteShiftKey({...p,guard:n.guard,day:n.day})))),used=new Set(),auto=automaticCoverageNotes(master,state).map(note=>{const comments=manual.filter(n=>n.id===note.id||n.kind==='Covering shift'&&sameShift(n,note));comments.forEach(n=>used.add(n.id));return {...note,comment:comments.map(n=>n.text).join('\n'),commentIds:comments.map(n=>n.id)};});
  return [...auto,...manual.filter(n=>!used.has(n.id))];
 }

@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {noteShiftOptions,saveShiftNote,validateShiftNotes,automaticCoverageNotes,weeklyShiftNotes} from '../public/shift-notes.js';
+import {noteShiftOptions,saveShiftNote,validateShiftNotes,automaticCoverageNotes,weeklyShiftNotes,noteEligibleShifts} from '../public/shift-notes.js';
 import {emptyState,newWorkspace,validateWorkspace} from '../src/domain.js';
 import {payrollSummary} from '../public/payroll.js';
 const row=(id,start,end,guard)=>({id,p:2,post:'Dock',start,end,guards:[guard,'','','','','',''],billable:false});
@@ -25,4 +25,12 @@ test('Coverage notes use absence reasons, combine linked parts once, and omit re
  const master=emptyState();master.rows=[row('a',510,900,'Rasheed'),{...row('b',900,990,'Rasheed'),p:3}];const state=structuredClone(master);state.rows.forEach(r=>r.guards[0]='Guard A');state.events=[{guard:'Rasheed',cover:'Guard A',day:0,post:'Dock',type:'Vacation',start:510,end:990}];
  const notes=automaticCoverageNotes(master,state);assert.equal(notes.length,1);assert.equal(notes[0].start,510);assert.equal(notes[0].end,990);assert(notes[0].text.includes('Vacation'));
  assert.equal(automaticCoverageNotes(master,master).length,0);state.rows.forEach(r=>r.guards[0]='');assert.equal(automaticCoverageNotes(master,state).length,0);
+});
+
+test('Notes exclude regular shifts and billing-only edits, include covers / extra time, and keep linked regular parts out',()=>{
+ const master=emptyState();master.rows=[row('a',510,900,'Rasheed'),{...row('b',900,990,'Rasheed'),p:3}];const state=structuredClone(master);
+ assert.equal(noteEligibleShifts(master,state).length,0);assert.equal(noteShiftOptions(state,master).length,0);state.rows[0].billable=true;assert.equal(noteEligibleShifts(master,state).length,0);
+ state.rows[0].guards[0]='Guard A';let options=noteShiftOptions(state,master);assert.equal(options.length,1);assert.equal(options[0].guard,'Guard A');assert.equal(options[0].end,900);
+ state.rows[0].guards[0]='Rasheed';state.rows[1].end=1050;options=noteShiftOptions(state,master);assert.equal(options.length,1);assert.equal(options[0].start,900);assert.equal(options[0].end,1050);
+ const note=saveShiftNote(master,noteShiftOptions(master)[0],{kind:'Other',text:'Old regular note'});assert.equal(weeklyShiftNotes(master,note).length,0,'Regular notes remain saved but are excluded from the changes section');
 });
