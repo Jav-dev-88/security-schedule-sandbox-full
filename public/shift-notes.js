@@ -1,4 +1,5 @@
-import {ledger,linkedParts} from './editor-model.js';
+import {assignmentClassifier} from './assignment-status.js';
+import {ledger,linkedParts,linkedRows} from './editor-model.js';
 export function noteShiftOptions(state){
  const seen=new Set(),options=[];
  for(const r of ledger(state).filter(r=>r.guard&&!r.paidHoliday)){
@@ -13,7 +14,32 @@ export function validateShiftNotes(notes){
  return notes;
 }
 export function saveShiftNote(state,shift,fields,id=null){
- const next=structuredClone(state);next.shiftNotes??=[];const previous=id?next.shiftNotes.find(n=>n.id===id):null;if(id&&!previous)throw Error('This note was removed. Refresh and try again.');if(!previous&&!shift)throw Error('Choose a scheduled shift.');
- const note={...(previous||shift),id:id||crypto.randomUUID(),kind:fields.kind,text:String(fields.text||'').trim(),updatedAt:new Date().toISOString()};delete note.key;
+ const next=structuredClone(state);next.shiftNotes??=[];const previous=id?next.shiftNotes.find(n=>n.id===id):null;if(id&&!previous&&!shift?.automatic)throw Error('This note was removed. Refresh and try again.');if(!previous&&!shift)throw Error('Choose a scheduled shift.');
+ const note={...(previous||shift),id:id||crypto.randomUUID(),kind:fields.kind,text:String(fields.text||'').trim(),updatedAt:new Date().toISOString()};for(const key of ['key','automatic','comment','commentIds'])delete note[key];
  if(previous)next.shiftNotes=next.shiftNotes.map(n=>n.id===id?note:n);else next.shiftNotes.push(note);validateShiftNotes(next.shiftNotes);return next;
+}
+
+// Coverage comes from saved assignments, attendance and Master; derive it on every
+// read so corrections update immediately and refreshes never create duplicates.
+export function automaticCoverageNotes(master,state){
+ const classify=assignmentClassifier(master,state),shifts=ledger(state).map(classify),groups=new Map(),links=new Map(),result=[];
+ for(const r of shifts.filter(r=>r.guard&&r.isCoverage&&!r.paidHoliday)){
+  if(!links.has(r.source))links.set(r.source,linkedRows(state,r));const rows=links.get(r.source);
+  const key=JSON.stringify([r.guard,r.day,rows.length===2?rows.map(row=>row.id).sort():[r.source,r.start,r.end,r.post]]);
+  if(!groups.has(key))groups.set(key,[]);groups.get(key).push(r);
+ }
+ for(const group of groups.values()){
+  const runs=[];for(const r of group.sort((a,b)=>a.start-b.start||a.source.localeCompare(b.source))){const last=runs.at(-1);if(last&&r.start<=Math.max(...last.map(x=>x.end)))last.push(r);else runs.push([r]);}
+  for(const covering of runs){
+   const first=covering[0],parts=covering.map(r=>({source:r.source,start:r.start,end:r.end})),start=Math.min(...covering.map(r=>r.start)),end=Math.max(...covering.map(r=>r.end));
+   const key=JSON.stringify([first.guard,first.day,parts]);let hash=14695981039346656037n;for(const c of key){hash^=BigInt(c.codePointAt(0));hash=BigInt.asUintN(64,hash*1099511628211n);}
+   result.push({guard:first.guard,day:first.day,parts,start,end,post:[...new Set(covering.map(r=>r.post))].join(' + '),id:'auto-cover-'+hash.toString(16),kind:'Covering shift',text:first.guard+' · '+[...new Set(covering.map(r=>r.note))].join(' · '),automatic:true});
+  }
+ }
+ return result;
+}
+function sameShift(a,b){return a.guard===b.guard&&a.day===b.day&&a.start===b.start&&a.end===b.end&&JSON.stringify(a.parts)===JSON.stringify(b.parts);}
+export function weeklyShiftNotes(master,state){
+ const manual=state.shiftNotes||[],used=new Set(),auto=automaticCoverageNotes(master,state).map(note=>{const comments=manual.filter(n=>n.id===note.id||n.kind==='Covering shift'&&sameShift(n,note));comments.forEach(n=>used.add(n.id));return {...note,comment:comments.map(n=>n.text).join('\n'),commentIds:comments.map(n=>n.id)};});
+ return [...auto,...manual.filter(n=>!used.has(n.id))];
 }

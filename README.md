@@ -16,3 +16,5 @@ Hours & Payroll has Missing pay, Leave balances, Payroll & reports, and Seniorit
 Set annual sick/personal allowances and hire dates from these tabs. No allowances or hire dates are assumed. Leave use comes from saved attendance, combines linked portions, caps each day at eight hours and excludes test schedules. Guards see only their own balances and payment status. Reports can be printed or downloaded as CSV. Existing weekly/Master Excel and PDF exports remain available.
 
 Weekly schedules also keep extra-hours / covering notes in a collapsible section. Add from the section or a guard’s cell → Shift note. Notes keep the original guard, date, post and time, combine linked shifts, support edit/delete, and do not alter payroll. They are manager records and are not included in guard responses.
+
+Coverage notes now fill automatically from the weekly assignments, absence records and Master comparison. They refresh as assignments change and combine linked coverage once. Managers may add or clear comments while keeping the generated coverage details. Existing weeks show automatic coverage notes without manual re-entry.
