@@ -108,3 +108,27 @@ export function recheckVacationAssignments(workspace,end){
  const candidates=ledger(state).filter(r=>r.guard&&vacations.some(v=>v.guard===r.guard&&v.from<=dates[r.day]&&v.to>=dates[r.day]));next.weeks[end]=applySavedVacations(state,end,vacations);
  return {workspace:next,openedShifts:candidates.length,changed:JSON.stringify(state)!==JSON.stringify(next.weeks[end])};
 }
+
+// Full-shift returns cancel the matching absence, never another guard's leave.
+export function returningLeaveEvents(state,target,fields){
+ if(!fields.guard||fields.status&&fields.status!=='staff')return [];
+ const parts=fields.linked===false?[target]:[target,...linkedParts(state,target)];
+ return (state.events||[]).filter(e=>e.guard===fields.guard&&!['Left early','Came late','Paid holiday — off','Extra holiday day off'].includes(e.type)&&parts.some(p=>e.day===p.day&&(e.coverageSource||e.source)===p.source&&e.start===p.start&&e.end===p.end));
+}
+function cancelReturnedLeave(workspace,end,events){
+ const next=structuredClone(workspace),dates=datesForWeek(end),eventKeys=new Set(events.map(e=>JSON.stringify(e))),vacationDays=new Map();
+ for(const e of events)if(e.type==='Vacation'){if(!vacationDays.has(e.guard))vacationDays.set(e.guard,new Set());vacationDays.get(e.guard).add(dates[e.day]);}
+ next.weeks[end].events=(next.weeks[end].events||[]).filter(e=>!eventKeys.has(JSON.stringify(e))&&!(e.type==='Vacation'&&vacationDays.get(e.guard)?.has(dates[e.day])));
+ const offset=(date,n)=>{const d=new Date(date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);};
+ if(next.vacations)next.vacations=next.vacations.flatMap(v=>{let ranges=[v];for(const day of vacationDays.get(v.guard)||[])ranges=ranges.flatMap(r=>{if(day<r.from||day>r.to)return [r];const pieces=[];if(r.from<day)pieces.push({...r,to:offset(day,-1)});if(day<r.to)pieces.push({...r,id:pieces.length?crypto.randomUUID():r.id,from:offset(day,1)});return pieces;});return ranges;});
+ return next;
+}
+export function returnGuardToWork(workspace,state,target,fields){
+ const events=returningLeaveEvents(state,target,fields);if(!events.length)return assignScheduleGuard(state,target,fields);
+ const next=cancelReturnedLeave(saveActive(workspace,state),workspace.activeWeek,events),result=assignScheduleGuard(next.weeks[next.activeWeek],target,fields);
+ return {...result,workspace:next,message:fields.guard+' returned to work; matching leave removed for '+datesForWeek(workspace.activeWeek)[target.day]+'.'};
+}
+export function reconcileReturnedLeave(workspace,end){
+ const state=workspace.weeks[end];if(!state)return {workspace,count:0};const shifts=ledger(state),events=(state.events||[]).filter(e=>!['Left early','Came late','Paid holiday — off','Extra holiday day off'].includes(e.type)&&shifts.some(r=>!r.paidHoliday&&r.guard===e.guard&&r.day===e.day&&(r.source===e.source||r.source===e.coverageSource)&&r.start<=e.start&&r.end>=e.end));
+ return {workspace:events.length?cancelReturnedLeave(workspace,end,events):workspace,count:events.length};
+}
