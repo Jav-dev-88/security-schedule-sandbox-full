@@ -75,6 +75,8 @@ $('generateTempStaff').onclick=()=>{try{generateTempGuard();}catch(e){status(e.m
 function quickRow(p){if(!canEdit())return;commit(quickAddRow(state,p));}
 function promptAttendanceChange(target,fields){
  if(workspace.mode!=='weekly'||!target.guard||target.guard===fields.guard||target.new||vacationCoverageEvents(state,target).length)return false;
+ const original=workspace.master.rows.find(row=>row.id===target.source);
+ if(fields.guard&&original?.guards?.[target.day]===fields.guard&&original.post===target.post&&target.start>=original.start&&target.end<=original.end)return false;
  clearTimeout(timer);activeInline=null;$('cellEditor').close();render();openAttendance(target,{target:structuredClone(target),fields:structuredClone(fields)});return true;
 }
 function inlineCell(k,button){
