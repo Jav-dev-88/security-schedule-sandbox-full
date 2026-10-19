@@ -345,3 +345,15 @@ test('Simple guard temporary passwords require first-login change, reset session
   assert.equal((await call(env,'/api/users/'+created.data.id+'/access',{cookie,method:'POST',data:{guardName:'Bart'}})).status,200);
  }finally{env.DB.close();}
 });
+
+test('Every account role can reset to username plus 1 repeatedly, while permanent passwords and permissions stay enforced',async()=>{
+ const env=envFactory();try{const admin=await setup(env);for(const [role,username] of [['MANAGER','mgr'],['ADMIN','adm']]){
+  const created=await call(env,'/api/users',{cookie:admin.cookie,method:'POST',data:{username,name:role,role,password:'OriginalPassword123'}});assert.equal(created.status,201);
+  for(let attempt=0;attempt<2;attempt++){
+   const reset=await call(env,'/api/users/'+created.data.id,{cookie:admin.cookie,method:'PATCH',data:{password:username+'1'}});assert.equal(reset.status,200);const login=await call(env,'/api/login',{method:'POST',data:{username,password:username+'1'}});assert.equal(login.status,200);assert.equal(login.data.user.mustChange,true);assert.equal((await call(env,'/api/workspace',{cookie:login.cookie})).status,403);
+   assert.equal((await call(env,'/api/password',{cookie:login.cookie,method:'POST',data:{currentPassword:username+'1',password:username+'1'}})).status,400);
+   assert.equal((await call(env,'/api/password',{cookie:login.cookie,method:'POST',data:{currentPassword:username+'1',password:'short1'}})).status,400);
+   const changed=await call(env,'/api/password',{cookie:login.cookie,method:'POST',data:{currentPassword:username+'1',password:'PersonalPassword123'}});assert.equal(changed.status,200);assert.equal((await call(env,'/api/login',{method:'POST',data:{username,password:username+'1'}})).status,401);
+  }
+ }}finally{env.DB.close();}
+});
