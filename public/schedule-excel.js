@@ -40,14 +40,14 @@ export function scheduleExcelParts(workspace,state,mode='weekly',week=workspace.
   for(const group of groups.filter(g=>g.p===p)){
    const n=rows.length+1,texts=group.cells.map(items=>items.length?items.map(r=>{
     const t=master?null:transferForShift(workspace,week,r);
-    return (r.guard||'Blank shift')+(r.paidHoliday?' · Paid holiday — off':r.isCoverage?' · Covering':'')+(r.billable&&r.guard?' · Billable':'')+(t?'\n'+t.hours+' hrs in W-E '+date(t.toWeek):'')+(r.moveNote?'\n'+r.moveNote:'');
+    return (r.guard||'Open — needs coverage')+(r.paidHoliday?' · Paid holiday — off':r.isCoverage?' · Covering':'')+(r.billable&&r.guard?' · Billable':'')+(t?'\n'+t.hours+' hrs in W-E '+date(t.toWeek):'')+(r.moveNote?'\n'+r.moveNote:'');
    }).join('\n'):'Blank shift');
    const dayStyle=(items,day)=>items.some(r=>r.paidHoliday)?'off':items.some(r=>r.isCoverage)?'coverage':items.some(r=>r.guard&&r.billable)?'billable':!master&&holidayOnDate(workspace.holidays||[],dates[day])?'holiday':!items.length?'blank':items.some(r=>!r.guard)?'open':'body';
    const count=Math.max(1,...texts.map(t=>t.split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil(line.length/22)),0)),Math.ceil((group.post||'').length/30));
    rows.push('<row r="'+n+'" ht="'+Math.max(30,count*14+8)+'" customHeight="1">'+cell(0,n,group.post||'')+cell(1,n,group.start/1440,'time')+cell(2,n,group.end/1440,'time')+cell(3,n,(group.end-group.start)/60,'hours','IF(C'+n+'>=B'+n+',C'+n+'-B'+n+',C'+n+'+1-B'+n+')*24')+texts.map((text,day)=>cell(day+4,n,text,dayStyle(group.cells[day],day))).join('')+'</row>');
   }
  }
- wide('Gray = Blank shift · Amber = needs coverage · Purple = covering · Blue = billable · Gold = holiday date · Green = holiday off','subtitle',30);
+ wide('Gray = Blank shift · Amber = Open — needs coverage · Purple = covering · Blue = billable · Gold = holiday date · Green = holiday off','subtitle',30);
  const sheet='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:K'+rows.length+'"/><sheetViews><sheetView workbookViewId="0" showGridLines="0"><pane xSplit="4" ySplit="4" topLeftCell="E5" activePane="bottomRight" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="30"/><cols><col min="1" max="1" width="32" customWidth="1"/><col min="2" max="3" width="10" customWidth="1"/><col min="4" max="4" width="9" customWidth="1"/><col min="5" max="11" width="24" customWidth="1"/></cols><sheetData>'+rows.join('')+'</sheetData><mergeCells count="'+merges.length+'">'+merges.map(ref=>'<mergeCell ref="'+ref+'"/>').join('')+'</mergeCells><pageMargins left="0.25" right="0.25" top="0.3" bottom="0.7" header="0" footer="0"/><pageSetup paperSize="1" orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>';
  const files={...excelTemplate.files,'xl/worksheets/sheet1.xml':sheet};
  files['xl/workbook.xml']=files['xl/workbook.xml'].replace('name="Schedule"','name="'+(master?'Master Template':'Weekly Schedule')+'"');
