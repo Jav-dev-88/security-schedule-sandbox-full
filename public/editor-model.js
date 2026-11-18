@@ -55,7 +55,8 @@ function assignOne(state,target,{guard,billable,status='staff'}){
 export function addRow(state,{post,start,end,day,guard,billable,status,platoon,quick=false}){
  if(!post.trim()&&!quick)throw Error('Enter the post.');if(end<=start||end-start>1440)throw Error('Enter different start and end times (maximum 24 hours).');
  if(!Number.isInteger(day)||day<0||day>6)throw Error('Choose a day.');
- const next=structuredClone(state),id='custom-'+crypto.randomUUID(),row={id,post:post.trim(),start,end,p:[1,2,3].includes(+platoon)?+platoon:start>=1380||start<420?1:start>=900?3:2,guards:Array(7).fill(''),open:Array(7).fill(false),billable,sortDay:day,custom:true,quick:!!quick};next.rows.push(row);
+ const p=Number(platoon);if(![1,2,3].includes(p))throw Error('Choose a platoon.');
+  const next=structuredClone(state),id='custom-'+crypto.randomUUID(),row={id,post:post.trim(),start,end,p,guards:Array(7).fill(''),open:Array(7).fill(false),billable,sortDay:day,custom:true,quick:!!quick};next.rows.push(row);
  return assign(next,{source:id,post:row.post,start,end,day,role:'regular',guard:''},{guard,billable,status});
 }
 export function splitCell(state,target,{post,from,to,billable,needsCover}){
