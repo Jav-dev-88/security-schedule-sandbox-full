@@ -31,9 +31,9 @@ test('Print snapshot is independent of dashboard visibility and leaves the edita
   assert.equal(snapshot.id,'schedulePrintRoot');assert.equal(snapshot.children[0].children[0].textContent,'WEEKLY SCHEDULE — W-E 10-18-2026');
   assert(replaced[0].innerHTML.includes('Guard A'));assert.equal(replaced[1].innerHTML,'Loading Dock');assert.equal(clone.className,'schedule-print-grid');
   assert(removed.includes(control));assert(removed.includes(spacer));assert(!removed.includes(dateBreak),'Dates retain line breaks below weekday names');
-  assert.equal(snapshot.style.zoom,'0.712');assert.equal(source.id,undefined,'The live source is untouched');
+  assert.equal(snapshot.style.zoom,'0.76');assert.equal(source.id,undefined,'The live source is untouched');
   clearSchedulePrint();assert.equal(root,null);
  }finally{globalThis.document=oldDocument;}
  const css=fs.readFileSync(new URL('../public/schedule-print.css',import.meta.url),'utf8');
- assert(css.includes('margin:.3in .3in .7in'));assert(css.includes('body.print-schedule>:not(#schedulePrintRoot){display:none!important}'));
+ assert(css.includes('margin:.25in .25in .25in'));assert(css.includes('body.print-schedule>:not(#schedulePrintRoot){display:none!important}'));
 });
