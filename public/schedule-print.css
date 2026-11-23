@@ -1,5 +1,5 @@
-#schedulePrintRoot{position:absolute;left:-100000px;top:0;width:10.4in;background:white;color:#122239;font:8pt/1.15 Arial,sans-serif;pointer-events:none}
-#schedulePrintRoot .schedule-print-sheet{width:10.4in;margin:0;padding:0;display:flow-root}
+#schedulePrintRoot{position:absolute;left:-100000px;top:0;width:13.3in;background:white;color:#122239;font:8pt/1.15 Arial,sans-serif;pointer-events:none}
+#schedulePrintRoot .schedule-print-sheet{width:13.3in;margin:0;padding:0;display:flow-root}
 #schedulePrintRoot h1{font-size:13pt;text-align:center;line-height:1.15;margin:0 0 7pt}
 #schedulePrintRoot .schedule-print-grid{overflow:visible;margin:0;padding:0}
 #schedulePrintRoot .platoon-bar{display:block;border:1px solid #bdcbd9;border-radius:0;background:#e3ebf3;padding:3pt 5pt;margin:5pt 0 0;break-after:avoid}
@@ -27,7 +27,7 @@
 #schedulePrintRoot .daily-hours th{padding:3pt;background:#e5eef7}
 #schedulePrintRoot .today-label{display:none}
 @media print{
- @page{size:letter landscape;margin:.3in .3in .7in}
+ @page{size:legal landscape;margin:.25in .25in .25in}
  html:has(body.print-schedule),body.print-schedule{margin:0!important;padding:0!important;min-height:0!important;height:auto!important;background:white!important;overflow:visible!important}
  body.print-schedule>:not(#schedulePrintRoot){display:none!important}
  body.print-schedule>#schedulePrintRoot{display:block!important;position:static!important;inset:auto!important;margin:0!important;padding:0!important;height:auto!important;max-height:none!important;overflow:visible!important;pointer-events:auto}
