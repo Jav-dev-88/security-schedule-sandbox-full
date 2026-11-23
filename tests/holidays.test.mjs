@@ -6,7 +6,7 @@ import {datesForWeek,generateWeek} from '../public/workspace-model.js';
 import {fullScheduleHtml} from '../public/guard-portal.js';
 import {schedulePdf} from '../src/pdf.js';
 import {payrollSummary} from '../public/payroll.js';
-function fixture(){const w=newWorkspace();w.master.rows=[{id:'a',post:'Lobby',p:2,start:420,end:900,guards:['Guard A','','','','','',''],billable:false}];return generateWeek(w,'2026-11-29');}
+function fixture(){const w=newWorkspace();w.master.rows=[{id:'a',post:'Lobby',p:2,start:420,end:900,guards:['Guard A','','','','','',''],billable:false}];return generateWeek(w,'2026-11-29',{overwrite:true});}
 test('Paid holiday calendar can be added, edited and validated without changing assignments or payroll',()=>{
  const w=fixture(),state=structuredClone(w.weeks[w.activeWeek]),pay=payrollSummary(state),next=saveHoliday(w,{name:' Thanksgiving ',date:'2026-11-26'});
  assert.equal(w.holidays.length,0);assert.equal(next.holidays[0].name,'Thanksgiving');assert.doesNotThrow(()=>validateWorkspace(next));assert.deepEqual(next.weeks[w.activeWeek],state);assert.deepEqual(payrollSummary(next.weeks[w.activeWeek]),pay);

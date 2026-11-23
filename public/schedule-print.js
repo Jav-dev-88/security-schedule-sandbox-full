@@ -13,8 +13,10 @@ export function prepareSchedulePrint(schedule,heading){
  grid.querySelectorAll('button.cellbutton,button.row-field').forEach(button=>{const content=document.createElement('div');content.className='schedule-print-cell';content.innerHTML=button.innerHTML;button.replaceWith(content);});
  grid.querySelectorAll('button,input,select,dialog,br').forEach(node=>{if(node.tagName!=='BR'||node.parentElement===grid)node.remove();});
  sheet.append(grid);root.append(sheet);document.body.append(root);
- // Letter landscape: 8.5 inches minus .3 top and .7 bottom, at 96 CSS px/in.
- const scale=schedulePrintScale(sheet.getBoundingClientRect().height);
- root.style.zoom=String(scale);root.style.width=(10.4/scale)+'in';sheet.style.width='100%';
+ // Legal landscape printable height: 8.5in minus .25in top/bottom.
+ // Keep the table at a fixed width while measuring and scaling; resizing the
+ // width after measuring would cause new line wraps and extra printed pages.
+ const scale=schedulePrintScale(sheet.getBoundingClientRect().height,768);
+ root.style.width='13.3in';sheet.style.width='13.3in';root.style.zoom=String(scale);
  return root;
 }
