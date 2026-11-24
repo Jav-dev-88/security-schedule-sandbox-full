@@ -68,6 +68,38 @@ export function addRow(state,{post,start,end,day,guard,billable,status,platoon,q
   const next=structuredClone(state),id='custom-'+crypto.randomUUID(),row={id,post:post.trim(),start,end,p,guards:Array(7).fill(''),open:Array(7).fill(false),billable,sortDay:day,custom:true,quick:!!quick};next.rows.push(row);
  return assign(next,{source:id,post:row.post,start,end,day,role:'regular',guard:''},{guard,billable,status});
 }
+// Replace only the selected OPEN interval with the working portion and
+// any still-open portions. Original leave, Master, and unrelated days stay
+// unchanged. Additional parts can be covered later using the same action.
+export function coverPartOfOpenShift(state,target,{guard,from,to,billable=false}){
+ const current=ledger(state).find(r=>segmentKey(r)===segmentKey(target));
+ if(!current||current.guard||current.role!=='open'||current.paidHoliday)
+  throw Error('Choose an OPEN shift that still needs coverage.');
+ if(!guard||!String(guard).trim()||/^open$|^blank shift$/i.test(String(guard).trim()))
+  throw Error('Choose a replacement guard.');
+ if(!Number.isInteger(from)||!Number.isInteger(to)||from<current.start||to>current.end||from>=to)
+  throw Error('Coverage hours must be inside the OPEN shift.');
+ if(ledger(state).some(r=>r.guard===guard&&!r.paidHoliday&&r.day===current.day&&Math.max(from,r.start)<Math.min(to,r.end)))
+  throw Error(guard+' already has a shift during those hours.');
+ if((state.events||[]).some(e=>e.guard===guard&&e.day===current.day&&e.start<to&&e.end>from&&['Vacation','Sick','Personal','Call-out','Unpaid leave','Bereavement','Jury Duty'].includes(e.type)))
+  throw Error(guard+' has recorded leave during these coverage hours.');
+ // Avoid automatic linking of the separately scheduled 08:30–15:00 and
+ // 15:00–16:30 posts; only the chosen cell is split.
+ let next=assign(state,current,{guard:'',status:'blank',billable:false,linked:false}).state;
+ const segments=[
+  ...(from>current.start?[{start:current.start,end:from,guard:'',status:'open'}]:[]),
+  {start:from,end:to,guard,status:'staff'},
+  ...(to<current.end?[{start:to,end:current.end,guard:'',status:'open'}]:[])
+ ];
+ for(const part of segments){
+  const result=addRow(next,{post:current.post,start:part.start,end:part.end,day:current.day,guard:part.guard,status:part.status,billable:part.status==='staff'?billable:current.billable,platoon:current.p});
+  next=result.state;
+  const added=next.rows.at(-1);
+  added.coverageParent=current.source;
+  added.coverageDay=current.day;
+ }
+ return {state:next,message:guard+' covering '+((to-from)/60).toFixed(2)+' hours. Remaining hours stay OPEN.'};
+}
 export function splitCell(state,target,{post,from,to,billable,needsCover}){
  const next=structuredClone(state),row=next.rows.find(r=>r.id===target.source);
  if(!target.guard||target.role!=='regular'||target.start!==row.start||target.end!==row.end)throw Error('Choose the guard’s original unsplit shift to split it.');
