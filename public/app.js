@@ -89,7 +89,7 @@ function inlineCell(k,button){
  const save=()=>{clearTimeout(timer);if(!activeInline||activeInline.td!==td)return false;try{const v=!select.value.trim()&&target.guard?'@open':typedGuard(select.value),fields={guard:v.startsWith('@')?'':v,status:v==='@blank'?'blank':v==='@open'?'open':'staff',billable:billing.checked,linked:td.querySelector('[data-linked]')?.checked??true};if(promptAttendanceChange(target,fields))return true;commit(target.new?addRow(state,{post:target.post,start:target.start,end:target.end,day:target.day,platoon:target.p,quick:target.post==='',...fields}):assignFromSchedule(target,fields));}catch(e){note.textContent=e.message;note.className='error';status(e.message,true);return false;}};
  activeInline.save=save;
  const markBlank=td.querySelector('[data-mark-blank]');
- markBlank.onclick=()=>{clearTimeout(timer);try{
+ if(markBlank)markBlank.onclick=()=>{clearTimeout(timer);try{
   // An OPEN cell can be a vacation-generated coverage segment. Blank only
   // this day/segment, not an automatically linked companion or other days.
   const result=assignFromSchedule(target,{guard:'',status:'blank',billable:false,linked:false});
