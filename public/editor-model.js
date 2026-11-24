@@ -67,11 +67,70 @@ export function splitCell(state,target,{post,from,to,billable,needsCover}){
 }
 
 // Worksheet rows remain intact across the seven day columns.
+// A cell link is local to this Master or weekly schedule. It connects two
+// full-shift cells (post + day), not their time ranges or payroll records.
+export const cellLinkKey=cell=>cell.source+'|'+cell.day;
+export function linkedCellPartner(state,cell){
+ const k=cellLinkKey(cell),pair=(state.cellLinks||[]).find(p=>p.includes(k));
+ if(!pair)return null;
+ const other=pair.find(x=>x!==k),split=other?.lastIndexOf('|');
+ if(split<0)return null;
+ const row=state.rows.find(r=>r.id===other.slice(0,split)),day=Number(other.slice(split+1));
+ if(!row||!Number.isInteger(day)||day<0||day>6)return null;
+ return {source:row.id,day,start:row.start,end:row.end,role:row.open?.[day]?'open':'regular',post:row.post,p:row.p,guard:row.guards[day]||'',billable:row.billing?.[day]??row.billable};
+}
+export function linkScheduleCells(state,first,second){
+ const a=cellLinkKey(first),b=cellLinkKey(second);
+ if(a===b)throw Error('Choose two different cells.');
+ const next=structuredClone(state);
+ for(const cell of [first,second]){
+  const row=next.rows.find(r=>r.id===cell.source);
+  if(!row||cell.day<0||cell.day>6||cell.start!==row.start||cell.end!==row.end||!['regular','open'].includes(cell.role))
+   throw Error('Link original full-shift cells only, not split or partial coverage segments.');
+  if((next.events||[]).some(e=>e.day===cell.day&&(e.source===row.id||e.coverageSource===row.id)))
+   throw Error('This cell has a leave or attendance record. Leave it unlinked to protect that record.');
+  if(next.plans[row.id+'|'+cell.day])throw Error('This cell has a split shift. Link original full shifts only.');
+ }
+ if((next.cellLinks||[]).some(p=>p.includes(a)||p.includes(b)))
+  throw Error('One of these cells is already linked. Unlink it first.');
+ // A linked assignment must not create overlapping work for one guard.
+ if(first.day===second.day&&Math.max(first.start,second.start)<Math.min(first.end,second.end))
+  throw Error('These shifts overlap on the same day. They cannot share one guard.');
+ (next.cellLinks??=[]).push([a,b]);
+ return {state:next,message:'Cells linked. Future guard/status edits update both cells together.'};
+}
+export function unlinkScheduleCell(state,cell){
+ const next=structuredClone(state),k=cellLinkKey(cell);
+ next.cellLinks=(next.cellLinks||[]).filter(p=>!p.includes(k));
+ return {state:next,message:'Cells unlinked; assignments remain unchanged.'};
+}
+export function movePlatoonRow(state,id,direction){
+ if(![-1,1].includes(direction))throw Error('Choose up or down.');
+ const source=state.rows.find(r=>r.id===id);if(!source)throw Error('Row not found.');
+ const next=structuredClone(state),p=source.p;
+ const order=(next.rowOrderByPlatoon?.[p]||next.rows.filter(r=>r.p===p).map(r=>r.id))
+  .filter(id=>next.rows.some(r=>r.id===id&&r.p===p));
+ for(const r of next.rows.filter(r=>r.p===p))if(!order.includes(r.id))order.push(r.id);
+ const at=order.indexOf(id),to=at+direction;
+ if(to<0||to>=order.length)return {state:next,message:'Already at the edge of this platoon.'};
+ [order[at],order[to]]=[order[to],order[at]];
+ (next.rowOrderByPlatoon??={})[p]=order;
+ return {state:next,message:'Row moved '+(direction===-1?'up':'down')+' within platoon '+p+'.'};
+}
 export function orderedGroups(state,list=ledger(state)){
  const map=new Map(),order=new Map(state.rows.map((r,i)=>[r.id,i]));
  const add=r=>{const source=state.rows.find(s=>s.id===(r.id||r.source));const derived=!!r.source&&(!source||r.post!==source.post||r.start!==source.start||r.end!==source.end);const additional=!!(source?.custom||derived);const k=[r.p,r.post,r.start,r.end,additional,source?.custom?source.id:''].join('|');if(!map.has(k))map.set(k,{...r,additional,derived,quick:!!source?.quick,order:order.get(r.id||r.source)??10000,cells:Array.from({length:7},()=>[])});return map.get(k);};
  state.rows.forEach(add);list.forEach(r=>add(r).cells[r.day].push(r));
- return [...map.values()].sort((a,b)=>a.p-b.p||Number(a.quick)-Number(b.quick)||(a.quick?(a.order-b.order||Number(a.derived)-Number(b.derived)):(Number(a.derived)-Number(b.derived)||a.order-b.order))||a.start-b.start||a.end-b.end);
+ return [...map.values()].sort((a,b)=>{
+  if(a.p!==b.p)return a.p-b.p;
+  const custom=state.rowOrderByPlatoon?.[a.p];
+  if(custom?.length){
+   const rank=x=>{const id=x.id||x.source;const i=custom.indexOf(id);return i<0?100000:i;};
+   const n=rank(a)-rank(b);if(n)return n;
+   return Number(a.derived)-Number(b.derived)||a.start-b.start||a.end-b.end;
+  }
+  return Number(a.quick)-Number(b.quick)||(a.quick?(a.order-b.order||Number(a.derived)-Number(b.derived)):(Number(a.derived)-Number(b.derived)||a.order-b.order))||a.start-b.start||a.end-b.end;
+ });
 }
 export function removeRow(state,id){
  const row=state.rows.find(r=>r.id===id);if(!row)throw Error('Select an original worksheet row to delete.');
