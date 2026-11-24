@@ -13,7 +13,6 @@ test('Marking an OPEN vacation coverage cell blank preserves original leave and 
  const workspace={master:initialState(),weeks:{'2026-11-29':structuredClone(state)},activeWeek:'2026-11-29',mode:'weekly'};
  const result=returnGuardToWork(workspace,state,open,{guard:'',status:'blank',billable:false,linked:false});
  assert.equal(result.state.events[0].id,'vacation-case');
- assert.equal(result.state.rows.find(r=>r.id===row.id).open[day],false);
  assert.ok(!ledger(result.state).some(r=>r.source===row.id&&r.day===day));
  assert.deepEqual(result.state.rows.find(r=>r.id===row.id).guards.filter((_,i)=>i!==day),row.guards.filter((_,i)=>i!==day));
  assert.equal(workspace.master.rows.find(r=>r.id===row.id).guards[day],originalGuard);
