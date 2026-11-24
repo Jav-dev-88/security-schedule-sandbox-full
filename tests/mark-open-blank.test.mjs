@@ -6,7 +6,7 @@ import {returnGuardToWork} from '../public/workspace-model.js';
 test('Marking an OPEN vacation coverage cell blank preserves original leave and other dates',()=>{
  const state=initialState(),row=state.rows.find(r=>r.id==='supervisor');
  const day=4,originalGuard=row.guards[day];
- row.guards[day]='';row.open[day]=true;
+ row.guards[day]='';(row.open??=Array(7).fill(false))[day]=true;
  state.events=[{id:'vacation-case',type:'Vacation',source:row.id,coverageSource:row.id,coverageStart:row.start,coverageEnd:row.end,guard:originalGuard,day,post:row.post,start:row.start,end:row.end,payment:'UNPAID',paidHours:0}];
  const open=ledger(state).find(r=>r.source===row.id&&r.day===day);
  assert.equal(open.role,'open');
