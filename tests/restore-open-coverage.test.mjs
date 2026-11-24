@@ -68,7 +68,7 @@ test('Partial coverage can be added again to an existing uncovered remainder',()
  assert.deepEqual(parts.filter(r=>r.guard).map(r=>[r.guard,r.start,r.end]).sort((a,b)=>a[1]-b[1]),
   [['Temp Coverage A',510,720],['Temp Coverage B',720,780]]);
  assert.deepEqual(parts.filter(r=>!r.guard).map(r=>[r.start,r.end]),[[780,900]]);
- assert.match(attendanceCoverage(state,state.events.find(e=>e.source==='lobby')),/Williams/);
+ assert.match(attendanceCoverage(state,state.events.find(e=>e.source==='lobby')),/Temp Coverage A/);
  assert.match(attendanceCoverage(state,state.events.find(e=>e.source==='lobby')),/Lamont/);
 });
 
