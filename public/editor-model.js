@@ -2,7 +2,43 @@ import {BASE,segments,validate,key} from './model.js';
 export const initialRows=structuredClone(BASE);
 export const segmentKey=r=>r.editKey||[r.source,r.day,r.role,r.start,r.end].join('|');
 export function applyRows(state){BASE.splice(0,BASE.length,...structuredClone(state.rows));}
-export function ledger(state){applyRows(state);return segments(state.plans).map(r=>({...r,editKey:segmentKey(r),...state.overrides[segmentKey(r)]})).filter(r=>!r.blank).map(r=>{const holiday=(state.events||[]).find(e=>e.type==='Paid holiday — off'&&e.source===r.source&&e.day===r.day&&e.guard===r.guard&&e.start===r.start&&e.end===r.end);const move=(state.moves||[]).slice().reverse().find(m=>m.day===r.day&&m.start===r.start&&m.end===r.end&&(m.source===r.source||m.destination===r.source&&m.guard===r.guard));if(move&&!holiday){if(move.source===r.source&&r.guard!==move.guard)return {...r,moveCoverage:!!r.guard,moveNote:r.guard?r.guard+' covering '+move.guard+' — '+move.guard+' moved to '+move.toPost:move.guard+' moved to cover '+move.toPost,note:r.guard?r.guard+' covering '+move.guard+' — '+move.guard+' moved to '+move.toPost:move.guard+' moved to cover '+move.toPost};if(move.destination===r.source)return {...r,moveCoverage:true,moveNote:'Moved from '+move.fromPost+' to cover '+move.toPost,note:'Moved from '+move.fromPost+' to cover '+move.toPost};}return holiday?{...r,paidHoliday:true,billable:false,note:'Paid holiday — off duty',holidayHours:holiday.payment==='PAID'?Number(holiday.paidHours||0):0}:r;});}
+// Index attendance and movement records once per ledger build. This keeps
+// the same first-holiday / most-recent-move precedence without repeatedly
+// searching every record for every visible shift.
+export function ledger(state){
+ applyRows(state);
+ const holidayByShift=new Map();
+ for(const e of state.events||[]){
+  if(e.type!=='Paid holiday — off')continue;
+  const k=[e.source,e.day,e.guard,e.start,e.end].join('|');
+  if(!holidayByShift.has(k))holidayByShift.set(k,e);
+ }
+ const movesByTime=new Map();
+ for(let i=(state.moves||[]).length-1;i>=0;i--){
+  const move=state.moves[i],k=[move.day,move.start,move.end].join('|');
+  if(!movesByTime.has(k))movesByTime.set(k,[]);
+  movesByTime.get(k).push(move);
+ }
+ return segments(state.plans)
+  .map(r=>({...r,editKey:segmentKey(r),...state.overrides[segmentKey(r)]}))
+  .filter(r=>!r.blank)
+  .map(r=>{
+   const holiday=holidayByShift.get([r.source,r.day,r.guard,r.start,r.end].join('|'));
+   const move=(movesByTime.get([r.day,r.start,r.end].join('|'))||[])
+    .find(m=>m.source===r.source||(m.destination===r.source&&m.guard===r.guard));
+   if(move&&!holiday){
+    if(move.source===r.source&&r.guard!==move.guard){
+     const note=r.guard?r.guard+' covering '+move.guard+' — '+move.guard+' moved to '+move.toPost:move.guard+' moved to cover '+move.toPost;
+     return {...r,moveCoverage:!!r.guard,moveNote:note,note};
+    }
+    if(move.destination===r.source){
+     const note='Moved from '+move.fromPost+' to cover '+move.toPost;
+     return {...r,moveCoverage:true,moveNote:note,note};
+    }
+   }
+   return holiday?{...r,paidHoliday:true,billable:false,note:'Paid holiday — off duty',holidayHours:holiday.payment==='PAID'?Number(holiday.paidHours||0):0}:r;
+  });
+}
 export function initialState(){return {version:2,rows:structuredClone(initialRows),plans:{},overrides:{}};}
 export function linkedRows(state,target){const selected=state.rows.find(r=>r.id===target.source);if(!selected)return [];const first=state.rows.filter(r=>r.start===510&&r.end===900),second=state.rows.filter(r=>r.start===900&&r.end===990);let pair=[];
  if(selected.linkedShift){const saved=state.rows.filter(r=>r.linkedShift===selected.linkedShift);if(saved.length===2&&saved.some(r=>r.start===510&&r.end===900)&&saved.some(r=>r.start===900&&r.end===990))return saved.sort((a,b)=>a.start-b.start);}
@@ -160,13 +196,15 @@ export function movePlatoonRow(state,id,direction){
 }
 export function orderedGroups(state,list=ledger(state)){
  const map=new Map(),order=new Map(state.rows.map((r,i)=>[r.id,i]));
- const add=r=>{const source=state.rows.find(s=>s.id===(r.id||r.source));const derived=!!r.source&&(!source||r.post!==source.post||r.start!==source.start||r.end!==source.end);const additional=!!(source?.custom||derived);const k=[r.p,r.post,r.start,r.end,additional,source?.custom?source.id:''].join('|');if(!map.has(k))map.set(k,{...r,additional,derived,quick:!!source?.quick,order:order.get(r.id||r.source)??10000,cells:Array.from({length:7},()=>[])});return map.get(k);};
+ const sourceById=new Map(state.rows.map(r=>[r.id,r]));
+ const rankByPlatoon=new Map(Object.entries(state.rowOrderByPlatoon||{}).map(([p,ids])=>[Number(p),new Map(ids.map((id,i)=>[id,i]))]));
+ const add=r=>{const source=sourceById.get(r.id||r.source);const derived=!!r.source&&(!source||r.post!==source.post||r.start!==source.start||r.end!==source.end);const additional=!!(source?.custom||derived);const k=[r.p,r.post,r.start,r.end,additional,source?.custom?source.id:''].join('|');if(!map.has(k))map.set(k,{...r,additional,derived,quick:!!source?.quick,order:order.get(r.id||r.source)??10000,cells:Array.from({length:7},()=>[])});return map.get(k);};
  state.rows.forEach(add);list.forEach(r=>add(r).cells[r.day].push(r));
  return [...map.values()].sort((a,b)=>{
   if(a.p!==b.p)return a.p-b.p;
-  const custom=state.rowOrderByPlatoon?.[a.p];
-  if(custom?.length){
-   const rank=x=>{const id=x.id||x.source;const i=custom.indexOf(id);return i<0?100000:i;};
+  const custom=rankByPlatoon.get(a.p);
+  if(custom?.size){
+   const rank=x=>custom.get(x.id||x.source)??100000;
    const n=rank(a)-rank(b);if(n)return n;
    return Number(a.derived)-Number(b.derived)||a.start-b.start||a.end-b.end;
   }
