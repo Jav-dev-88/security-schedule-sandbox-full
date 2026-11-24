@@ -54,7 +54,7 @@ test('Partial coverage calculates 3.5 worked hours and leaves 3 remaining OPEN',
  assert.equal(parts.filter(r=>r.guard==='Temp Coverage A').reduce((n,r)=>n+(r.end-r.start)/60,0),3.5);
  assert.deepEqual(parts.filter(r=>!r.guard).map(r=>[r.start,r.end]),[[720,900]]);
  assert.deepEqual(state.events,priorEvents);
- assert.equal(attendanceCoverage(state,state.events.find(e=>e.source==='lobby')),'Williams');
+ assert.equal(attendanceCoverage(state,state.events.find(e=>e.source==='lobby')),'Temp Coverage A');
  assert.equal(master.rows.find(r=>r.id==='lobby').guards[day],'Carson');
  assert.ok(shifts(state,'dock3').some(r=>r.role==='open'),'15:00–16:30 remains OPEN');
 });
@@ -66,7 +66,7 @@ test('Partial coverage can be added again to an existing uncovered remainder',()
  state=coverPartOfOpenShift(state,remaining,{guard:'Temp Coverage B',from:720,to:780}).state;
  const parts=shifts(state,'lobby');
  assert.deepEqual(parts.filter(r=>r.guard).map(r=>[r.guard,r.start,r.end]).sort((a,b)=>a[1]-b[1]),
-  [['Williams',510,720],['Temp Coverage B',720,780]]);
+  [['Temp Coverage A',510,720],['Temp Coverage B',720,780]]);
  assert.deepEqual(parts.filter(r=>!r.guard).map(r=>[r.start,r.end]),[[780,900]]);
  assert.match(attendanceCoverage(state,state.events.find(e=>e.source==='lobby')),/Williams/);
  assert.match(attendanceCoverage(state,state.events.find(e=>e.source==='lobby')),/Lamont/);
