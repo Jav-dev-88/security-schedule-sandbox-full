@@ -76,6 +76,6 @@ test('Reject part coverage outside OPEN interval or overlapping the replacement 
  const state=vacationFixture(),open=ledger(state).find(r=>r.source==='lobby'&&r.day===day);
  assert.throws(()=>coverPartOfOpenShift(state,open,{guard:'Williams',from:480,to:720}),/inside the OPEN/);
  assert.throws(()=>coverPartOfOpenShift(state,open,{guard:'Williams',from:720,to:950}),/inside the OPEN/);
- assert.throws(()=>coverPartOfOpenShift(state,open,{guard:'Flores',from:510,to:900}),/recorded|shift/i);
+ assert.throws(()=>coverPartOfOpenShift(state,open,{guard:'Carson',from:510,to:900}),/recorded|shift/i);
  assert.deepEqual(ledger(state).find(r=>r.source==='lobby'&&r.day===day).role,'open');
 });
