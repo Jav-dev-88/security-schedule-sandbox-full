@@ -97,7 +97,9 @@ export function vacationCoverageEvents(state,target){
 export function assignScheduleGuard(state,target,fields){
  const parts=fields.linked===false?[target]:[target,...linkedParts(state,target)],events=[...new Map(parts.flatMap(part=>vacationCoverageEvents(state,part)).map(e=>[e.id,e])).values()];
  if(events.some(e=>e.guard===fields.guard))throw Error(fields.guard+' is recorded on '+(events.some(e=>e.guard===fields.guard&&e.type==='Vacation')?'vacation':'leave')+' for this shift. Choose another covering guard or correct their vacation dates first.');
- const result=assign(state,target,events.length&&!fields.guard?{...fields,status:'open'}:fields);
+ // Explicit manager Blank shift overrides must not be forced back to OPEN by a vacation event.
+ // The vacation remains in events; only the need-for-coverage status changes.
+ const result=assign(state,target,events.length&&!fields.guard&&fields.status!=='blank'?{...fields,status:'open'}:fields);
  for(const e of result.state.events||[]){if(!events.some(old=>old.id===e.id))continue;if(!e.coverageSource){const original=events.find(old=>old.id===e.id);e.coverageSource=parts.find(part=>vacationCoverageEvents(state,part).some(event=>event.id===e.id))?.source||original.source;e.coverageStart=original.start;e.coverageEnd=original.end;}e.cover=fields.guard||'';}
  return result;
 }
