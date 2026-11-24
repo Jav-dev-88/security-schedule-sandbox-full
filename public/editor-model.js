@@ -95,7 +95,7 @@ export function coverPartOfOpenShift(state,target,{guard,from,to,billable=false}
   const result=addRow(next,{post:current.post,start:part.start,end:part.end,day:current.day,guard:part.guard,status:part.status,billable:part.status==='staff'?billable:current.billable,platoon:current.p});
   next=result.state;
   const added=next.rows.at(-1);
-  added.coverageParent=current.source;
+  added.coverageParent=state.rows.find(r=>r.id===current.source)?.coverageParent||current.source;
   added.coverageDay=current.day;
  }
  return {state:next,message:guard+' covering '+((to-from)/60).toFixed(2)+' hours. Remaining hours stay OPEN.'};
