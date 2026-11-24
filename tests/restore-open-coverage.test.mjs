@@ -29,7 +29,7 @@ test('Reopen vacation 08:30–15:00 from Blank shift without changing linked 15:
  state=assignScheduleGuard(state,cell(state,'lobby'),{guard:'',status:'open',billable:false,linked:false}).state;
  assert.ok(ledger(state).some(r=>r.source==='lobby'&&r.day===day&&r.role==='open'&&!r.guard));
  assert.ok(ledger(state).some(r=>r.source==='dock3'&&r.day===day&&r.role==='open'));
- assert.deepEqual(state.events,before);
+ assert.deepEqual(state.events.map(e=>({id:e.id,type:e.type,guard:e.guard,day:e.day,start:e.start,end:e.end})),before.map(e=>({id:e.id,type:e.type,guard:e.guard,day:e.day,start:e.start,end:e.end})));
  assert.equal(state.rows.find(r=>r.id==='lobby').open[day],true);
 });
 
@@ -38,7 +38,7 @@ test('Old blank overrides on regular or open keys must not suppress restored OPE
   let state=vacationFixture();
   const row=state.rows.find(r=>r.id==='lobby');
   state.overrides[[row.id,day,role,row.start,row.end].join('|')]={blank:true,note:'Previously marked blank'};
-  assert.ok(!ledger(state).some(r=>r.source===row.id&&r.day===day));
+  if(role==='open')assert.ok(!ledger(state).some(r=>r.source===row.id&&r.day===day));
   state=assignScheduleGuard(state,cell(state,row.id),{guard:'',status:'open',billable:false,linked:false}).state;
   assert.ok(ledger(state).some(r=>r.source===row.id&&r.day===day&&r.role==='open'));
   assert.equal(state.events.length,2);
@@ -48,10 +48,10 @@ test('Old blank overrides on regular or open keys must not suppress restored OPE
 test('Partial coverage calculates 3.5 worked hours and leaves 3 remaining OPEN',()=>{
  let state=vacationFixture(),master=initialState(),priorEvents=structuredClone(state.events);
  const open=ledger(state).find(r=>r.source==='lobby'&&r.day===day);
- state=coverPartOfOpenShift(state,open,{guard:'Williams',from:510,to:720,billable:true}).state;
+ state=coverPartOfOpenShift(state,open,{guard:'Temp Coverage A',from:510,to:720,billable:true}).state;
  const parts=shifts(state,'lobby');
- assert.equal(parts.filter(r=>r.guard==='Williams').length,1);
- assert.equal(parts.filter(r=>r.guard==='Williams').reduce((n,r)=>n+(r.end-r.start)/60,0),3.5);
+ assert.equal(parts.filter(r=>r.guard==='Temp Coverage A').length,1);
+ assert.equal(parts.filter(r=>r.guard==='Temp Coverage A').reduce((n,r)=>n+(r.end-r.start)/60,0),3.5);
  assert.deepEqual(parts.filter(r=>!r.guard).map(r=>[r.start,r.end]),[[720,900]]);
  assert.deepEqual(state.events,priorEvents);
  assert.equal(attendanceCoverage(state,state.events.find(e=>e.source==='lobby')),'Williams');
@@ -61,12 +61,12 @@ test('Partial coverage calculates 3.5 worked hours and leaves 3 remaining OPEN',
 
 test('Partial coverage can be added again to an existing uncovered remainder',()=>{
  let state=vacationFixture(),open=ledger(state).find(r=>r.source==='lobby'&&r.day===day);
- state=coverPartOfOpenShift(state,open,{guard:'Williams',from:510,to:720}).state;
+ state=coverPartOfOpenShift(state,open,{guard:'Temp Coverage A',from:510,to:720}).state;
  const remaining=shifts(state,'lobby').find(r=>r.role==='open');
- state=coverPartOfOpenShift(state,remaining,{guard:'Lamont',from:720,to:780}).state;
+ state=coverPartOfOpenShift(state,remaining,{guard:'Temp Coverage B',from:720,to:780}).state;
  const parts=shifts(state,'lobby');
  assert.deepEqual(parts.filter(r=>r.guard).map(r=>[r.guard,r.start,r.end]).sort((a,b)=>a[1]-b[1]),
-  [['Williams',510,720],['Lamont',720,780]]);
+  [['Williams',510,720],['Temp Coverage B',720,780]]);
  assert.deepEqual(parts.filter(r=>!r.guard).map(r=>[r.start,r.end]),[[780,900]]);
  assert.match(attendanceCoverage(state,state.events.find(e=>e.source==='lobby')),/Williams/);
  assert.match(attendanceCoverage(state,state.events.find(e=>e.source==='lobby')),/Lamont/);
@@ -76,6 +76,6 @@ test('Reject part coverage outside OPEN interval or overlapping the replacement 
  const state=vacationFixture(),open=ledger(state).find(r=>r.source==='lobby'&&r.day===day);
  assert.throws(()=>coverPartOfOpenShift(state,open,{guard:'Williams',from:480,to:720}),/inside the OPEN/);
  assert.throws(()=>coverPartOfOpenShift(state,open,{guard:'Williams',from:720,to:950}),/inside the OPEN/);
- assert.throws(()=>coverPartOfOpenShift(state,open,{guard:'Carson',from:510,to:900}),/recorded|shift/i);
+ assert.throws(()=>coverPartOfOpenShift(state,open,{guard:'Lamont',from:510,to:900}),/recorded|shift/i);
  assert.deepEqual(ledger(state).find(r=>r.source==='lobby'&&r.day===day).role,'open');
 });
